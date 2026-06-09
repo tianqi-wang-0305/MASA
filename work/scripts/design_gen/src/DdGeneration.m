@@ -437,11 +437,14 @@ targetId = char(targetId);
 end
 
 function systems = collectReportSystems(modelName)
-allSystems = unique([string(modelName); string(find_system(modelName, ...
+subsystemPaths = string(find_system(modelName, ...
     "LookUnderMasks","all", ...
     "FollowLinks","on", ...
     "Type","Block", ...
-    "BlockType","SubSystem"))], "stable");
+    "BlockType","SubSystem"));
+stateflowChartPaths = collectStateflowChartPaths(modelName);
+
+allSystems = unique([string(modelName); subsystemPaths; stateflowChartPaths], "stable");
 
 keep = true(size(allSystems));
 for i = 1:numel(allSystems)
@@ -476,6 +479,36 @@ for i = 1:numel(allSystems)
 end
 
 systems = allSystems(keep);
+end
+
+function chartPaths = collectStateflowChartPaths(modelName)
+chartPaths = strings(0, 1);
+
+try
+    root = sfroot;
+    charts = root.find("-isa", "Stateflow.Chart");
+catch
+    return;
+end
+
+modelPrefix = string(modelName) + "/";
+for i = 1:numel(charts)
+    try
+        chartPath = string(charts(i).Path);
+    catch
+        continue;
+    end
+
+    if strlength(chartPath) == 0
+        continue;
+    end
+
+    if strcmpi(chartPath, string(modelName)) || startsWith(chartPath, modelPrefix)
+        chartPaths(end + 1, 1) = chartPath; %#ok<AGROW>
+    end
+end
+
+chartPaths = unique(chartPaths, "stable");
 end
 
 function descriptionText = getModelDescription(sys)
