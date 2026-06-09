@@ -1,0 +1,27 @@
+{
+	"name": "aspice_swe3",
+	"purpose": "Generate a detailed design document for a Simulink model using the sdd-detail-design-generation skill.",
+	"instructions": [
+		"Use model_overview on the root model to understand the hierarchy.",
+		"Use model_read on the root model and on every subsystem that will receive a chapter in the document.",
+		"Use model_query_params and model_resolve_params to capture block parameters, sample times, and workspace values when they appear in the model.",
+		"Keep the existing DdGeneration.m script unchanged and treat it as the legacy report path.",
+		"Derive each subsystem chapter description from the actual signal flow, internal blocks, and parameter usage.",
+		"Include input interfaces, output interfaces, calibration parameters, subsystem screenshots, and hyperlink navigation in the final report.",
+		"Do not invent behavior that is not visible in the model or workbook."
+	],
+	"output": {
+		"format": "pdf",
+		"sections": [
+			"Title Page",
+			"Table of Contents",
+			"Input Interfaces",
+			"Output Interfaces",
+			"Calibration",
+			"Subsystem Navigation",
+			"Model Overview",
+			"Subsystem Chapters"
+		]
+	}
+}
+

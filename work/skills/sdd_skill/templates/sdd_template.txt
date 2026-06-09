@@ -1,0 +1,60 @@
+Detailed Design Document Template
+
+1. Title Page
+	- Model name
+	- Document name
+	- Source workbook
+	- Generation date
+
+2. Table of Contents
+
+3. Input Interface Summary
+	- Signal name
+	- Direction
+	- Data type
+	- Dimension
+	- Unit
+	- Notes
+
+4. Output Interface Summary
+	- Signal name
+	- Direction
+	- Data type
+	- Dimension
+	- Unit
+	- Notes
+
+5. Calibration Summary
+	- Parameter name
+	- Type
+	- Value
+	- Min
+	- Max
+	- Unit
+	- Notes
+
+6. Subsystem Navigation
+	- Hyperlinked list of every subsystem chapter
+
+7. Model Overview
+	- Top-level role of the model
+	- Major signal paths
+	- Key interfaces
+
+8. Subsystem Chapters
+	For each subsystem:
+	- Chapter title
+	- Purpose
+	- Inputs
+	- Outputs
+	- Internal signal flow
+	- Key logic and calculations
+	- Calibration or parameter dependencies
+	- Screenshot / diagram
+	- Cross-links to related subsystems
+
+9. Appendix
+	- Traceability notes
+	- Unresolved items
+	- Assumptions
+
