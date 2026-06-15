@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "description": "Configuration for AI-Enhanced SDD Generation",
+  "required_paths": {
+    "toolkit_root": "<auto-detected>",
+    "sdd_skill_dir": "<auto-detected>"
+  },
+  "report_settings": {
+    "default_output_format": "pdf",
+    "include_diagrams": true,
+    "diagram_format": "pdf",
+    "diagram_width": "6.8in",
+    "navigation_enabled": true,
+    "max_subsystems_in_overview": 15
+  },
+  "description_generation": {
+    "strategy": "ai_enhanced",
+    "use_model_read": true,
+    "use_model_query_params": true,
+    "use_model_resolve_params": true,
+    "fallback_to_keyword_matching": true,
+    "max_description_length": 2000
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "description": "Configuration for Automated Simulink Test Generation",
+  "test_settings": {
+    "default_strategy": "basic",
+    "available_strategies": ["basic", "boundary", "comprehensive"],
+    "draft_mode_first": true,
+    "run_full_compilation": true,
+    "collect_coverage": true,
+    "coverage_type": "decision"
+  },
+  "stimulus_defaults": {
+    "simulation_steps_min": 100,
+    "simulation_steps_max": 1000,
+    "step_transition_time": "1s"
+  },
+  "output": {
+    "test_dir_name": "_tests",
+    "report_format": "html",
+    "baseline_dir": "_baselines"
+  }
+}
