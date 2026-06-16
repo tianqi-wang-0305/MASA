@@ -21,16 +21,6 @@ Type `/` in chat to see these commands:
 | `/setPortTypes` | Auto-set port data types from signal name prefixes |
 | `/reviewModel` | Comprehensive model review (7 checks, AI-driven) |
 
-## Custom Skills
-
-| Skill | Location | Use Case |
-|-------|----------|----------|
-| **build-simulink-from-requirements** | `work/scripts/model_gen/.github/skills/` | Guides the AI in transforming natural language requirements into Simulink models using model_edit |
-| **sdd-detail-design-generation** | `.github/skills/sdd_skill/` | SDD detailed design doc generation (legacy, use `/generateAISDD`) |
-| **simulink-static-audit** | `.github/skills/static_skill/` | Model static audit checks (legacy, use `/reviewModel`) |
-
-All 3 skills are symlinked to `.github/skills/` and discoverable by the AI agent via `/`.
-
 ## Project Structure
 
 ```
@@ -45,7 +35,7 @@ work/
 │   │   ├── DdGeneration_ASPICE.m
 │   │   ├── analyzeModelDeepForSDD.m
 │   │   └── .headless/
-│   ├── review_gen/src/           ← Model review + naming/connection checks
+│   ├── review_gen/src/           ← Model review + naming/connection/hierarchy checks
 │   │   ├── reviewModel.m
 │   │   ├── check_naming_convention.m
 │   │   ├── check_connection_rules.m
