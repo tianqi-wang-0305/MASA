@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "description": "Quality check configuration for Model Advisor threshold checks",
+  "defaults": {
+    "error_threshold": 0,
+    "warning_threshold": 100,
+    "report_format": "HTML",
+    "auto_fix": false
+  },
+  "ci_settings": {
+    "fail_on_error": true,
+    "fail_on_warning": false,
+    "upload_reports": true
+  },
+  "pre_commit": {
+    "enabled": true,
+    "error_threshold": 5,
+    "skip_on_no_slx": true
+  }
+}

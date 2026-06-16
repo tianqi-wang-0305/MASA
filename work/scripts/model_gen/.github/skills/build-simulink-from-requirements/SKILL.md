@@ -105,11 +105,12 @@ Extract structured information from the user's natural language description.
 
 ### Parameter/Calibration Identification
 
-| Clue | Practice |
-|------|----------|
-| Hardcoded thresholds (15 km/h, 5 km/h) | Extract to workspace variable (Kmh_AutoLock, Kmh_UnlockInhibit) |
-| Gain values | Use Gain block with variable name (Kp_SpeedCtrl) |
-| Lookup table data | Use Lookup Table with variable name (TorqueMap_Data) |
+| Clue in Requirements | Recommended Practice |
+|---------------------|---------------------|
+| "threshold", "limit", "trigger point" | Extract to a named workspace variable (e.g., `Threshold_Speed`, `Limit_Temperature`) |
+| "gain", "coefficient", "factor", "Kp", "Ki" | Use Gain block with a descriptive variable name (e.g., `Gain_Speed`, `Kp_Controller`) |
+| "lookup table", "map", "curve", "characteristic" | Use Lookup Table block with variable data (e.g., `TableData_Map`, `Breakpoints_Speed`) |
+| "timeout", "period", "duration", "interval" | Use DiscretePulseGenerator or MATLAB Function with named variable (e.g., `Timeout_Period`, `Sample_Interval`) |
 
 ## Step 2: Design Architecture
 

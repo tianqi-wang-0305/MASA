@@ -1,0 +1,59 @@
+#!/bin/bash
+# pre-commit hook for Simulink model validation
+# Runs Model Advisor checks before each git commit.
+# Install: ln -sf ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+
+echo "=== [pre-commit] Simulink Model Validation ==="
+
+# Find staged .slx files
+SLX_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -i '\.slx$')
+
+if [ -z "$SLX_FILES" ]; then
+    echo "No .slx files staged. Skipping model validation."
+    exit 0
+fi
+
+echo "Found staged models:"
+echo "$SLX_FILES"
+
+# For each staged model, run validation
+HAS_ERRORS=0
+for SLX in $SLX_FILES; do
+    echo ""
+    echo "--- Checking: $SLX ---"
+    
+    MODEL_NAME=$(basename "$SLX" .slx)
+    
+    # Run Model Advisor check via MATLAB
+    /Applications/MATLAB_R2025a.app/bin/matlab -batch "
+        try
+            addpath('scripts/quality_gen/src');
+            result = checkModelWithThreshold('$SLX', 'ErrorThreshold', 0);
+            if ~result.passed
+                exit(1);
+            end
+        catch ME
+            fprintf('ERROR: %s\n', ME.message);
+            exit(1);
+        end
+    " 2>&1
+    
+    if [ $? -ne 0 ]; then
+        echo "⛔ Model check FAILED for: $SLX"
+        HAS_ERRORS=1
+    else
+        echo "✅ Model check PASSED for: $SLX"
+    fi
+done
+
+if [ $HAS_ERRORS -ne 0 ]; then
+    echo ""
+    echo "⛔ [pre-commit] Some models failed validation."
+    echo "   Commit blocked. Fix errors and try again."
+    echo "   To skip: git commit --no-verify"
+    exit 1
+fi
+
+echo ""
+echo "✅ [pre-commit] All models passed validation."
+exit 0

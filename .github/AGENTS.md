@@ -12,6 +12,14 @@ Type `/` in chat to see these commands:
 | `/generateAISDD` | Generate AI-enhanced ASPICE SDD PDF |
 | `/generateModelTests` | Auto-generate Simulink Test .feature files |
 | `/buildModel` | Build any Simulink model from natural language requirements |
+| `/autoLayout` | Auto-layout model: align ports, arrange subsystems |
+| `/checkModel` | Run Model Advisor with pass/fail threshold |
+| `/analyzeCoverage` | Aggregate MIL/SIL coverage dashboard |
+| `/analyzeSensitivity` | Scan calibration params for output sensitivity |
+| `/validateInterface` | Check Excel-model consistency |
+| `/generateTraceMatrix` | Generate Requirement Traceability Matrix |
+| `/setPortTypes` | Auto-set port data types from signal name prefixes |
+| `/reviewModel` | Comprehensive model review (7 checks, AI-driven) |
 
 ## Custom Skills
 
@@ -36,7 +44,7 @@ work/
 │   │   └── generateModelTests.m
 │   └── model_gen/                ← Generic model building
 │       ├── .github/skills/       ← build-simulink-from-requirements skill
-│       └── src/                  ← Example model builders (BCM, etc.)
+│       └── src/                  ← Generic model builder from spec
 │
 └── skills/
     ├── sdd_skill/                ← SDD detailed design generation skill

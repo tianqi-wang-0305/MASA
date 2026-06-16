@@ -20,11 +20,31 @@ metadata:
 - Model Advisor 检查：运行一组默认检查并写入报告
 - 报告输出：生成 HTML 报告，同时打印 JSON 结果，便于外部脚本解析
 
+## 统一 Review 入口
+
+推荐使用 `reviewModel.m` 一次性运行所有检查：
+
+```matlab
+result = reviewModel('Model.slx');
+```
+
+这会自动执行：
+1. Model Advisor（门限控制）
+2. 命名规范
+3. 连线完整性
+4. 层级完整性
+5. 端口数据类型定义
+6. model_check（MCP 工具）
+7. AI 设计审查（反模式检测）
+
+输出包含评分（A-D 等级）、问题分类（critical/major/minor）、HTML 报告。
+在 VS Code 中使用 `/reviewModel` slash command 一键运行。
+
 ## 推荐流程
 1. 确认模型路径和依赖文件可访问。
-2. 运行 `scripts/run_model_advisor.m`。
-3. 阅读 JSON 摘要中的问题分类和层级统计。
-4. 打开 `reports/` 下生成的 HTML 报告，查看逐条问题和 Model Advisor 输出。
+2. 运行 `reviewModel('Model.slx')` 获取综合审查报告。
+3. 查看评分和等级，优先修复 critical/major 问题。
+4. 打开 `_reviews/` 下生成的 HTML 报告，查看逐条问题和 AI 建议。
 
 ## 输入模板
 如果你希望把这个 skill 作为斜杠提示词使用，可以直接套用 `prompt_template.txt` 的格式，填入模型路径后执行。

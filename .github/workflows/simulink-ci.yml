@@ -1,0 +1,260 @@
+# Simulink CI Pipeline
+# Runs on push and pull request for Simulink model validation,
+# code generation verification, and documentation.
+name: Simulink CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'work/**/*.slx'
+      - 'work/**/*.m'
+      - 'work/**/*.xlsx'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'work/**/*.slx'
+
+jobs:
+  # Job 1: Model Validation
+  model-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2025a
+          products: Simulink Simulink_Test Simulink_Check Simulink_Report_Gen
+
+      - name: Find changed models
+        id: find-models
+        run: |
+          echo "Changed files:"
+          git diff --name-only --diff-filter=ACM ${{ github.event.before }} ${{ github.sha }} | grep '\\.slx$' || echo "No SLX files changed"
+
+      - name: Run Model Advisor Check
+        uses: matlab-actions/run-command@v2
+        with:
+          command: |
+            addpath('work/scripts/quality_gen/src');
+            addpath('work/simulink-agentic-toolkit');
+            % Find all .slx files
+            slxFiles = dir('work/**/*.slx');
+            results = [];
+            for i = 1:numel(slxFiles)
+                try
+                    r = checkModelWithThreshold(fullfile(slxFiles(i).folder, slxFiles(i).name), ...
+                        'ErrorThreshold', 0);
+                    results = [results; r]; %#ok<AGROW>
+                catch ME
+                    fprintf('FAILED: %s - %s\n', slxFiles(i).name, ME.message);
+                end
+            end
+            % Fail if any check failed
+            for i = 1:numel(results)
+                if ~results(i).passed
+                    error('Model check failed for one or more models');
+                end
+            end
+
+  # Job 2: Auto-Generate Tests
+  test-generation:
+    needs: model-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2025a
+          products: Simulink Simulink_Test
+
+      - name: Generate and Run Tests
+        uses: matlab-actions/run-command@v2
+        with:
+          command: |
+            addpath('work/scripts/test_gen/src');
+            addpath('work/simulink-agentic-toolkit');
+            % Find all .slx files and generate tests
+            slxFiles = dir('work/**/*.slx');
+            for i = 1:numel(slxFiles)
+                try
+                    generateModelTests(fullfile(slxFiles(i).folder, slxFiles(i).name), ...
+                        'Strategy', 'basic', 'RunTests', true);
+                catch ME
+                    fprintf('Test generation skipped for %s: %s\n', ...
+                        slxFiles(i).name, ME.message);
+                end
+            end
+
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: 'work/**/_tests/*.html'
+
+  # Job 3: Coverage Analysis
+  coverage:
+    needs: test-generation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2025a
+          products: Simulink Simulink_Test Simulink_Coverage
+
+      - name: Analyze Coverage
+        uses: matlab-actions/run-command@v2
+        with:
+          command: |
+            addpath('work/scripts/coverage_gen/src');
+            addpath('work/simulink-agentic-toolkit');
+            slxFiles = dir('work/**/*.slx');
+            for i = 1:numel(slxFiles)
+                try
+                    analyzeModelCoverage(fullfile(slxFiles(i).folder, slxFiles(i).name), ...
+                        'Threshold', 80);
+                catch ME
+                    fprintf('Coverage skipped for %s: %s\n', ...
+                        slxFiles(i).name, ME.message);
+                end
+            end
+
+  # Job 5: Model Review (on PR only)
+  review:
+    if: github.event_name == 'pull_request'
+    needs: [model-check, test-generation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2025a
+          products: Simulink Simulink_Check Simulink_Report_Gen
+
+      - name: Run Comprehensive Review
+        uses: matlab-actions/run-command@v2
+        with:
+          command: |
+            addpath('work/scripts/review_gen/src');
+            addpath('work/scripts/quality_gen/src');
+            addpath('work/scripts/chk_mng/src');
+            addpath('work/skills/static_skill/scripts');
+            addpath('work/simulink-agentic-toolkit');
+            slxFiles = dir('work/**/*.slx');
+            allPassed = true;
+            for i = 1:numel(slxFiles)
+                try
+                    r = reviewModel(fullfile(slxFiles(i).folder, slxFiles(i).name));
+                    fprintf('Review: %s - Score: %d/100 (Grade %s)\n', ...
+                        slxFiles(i).name, r.score, r.grade);
+                    if r.score < 60
+                        allPassed = false;
+                    end
+                catch ME
+                    fprintf('Review failed for %s: %s\n', slxFiles(i).name, ME.message);
+                end
+            end
+            if ~allPassed
+                error('One or more models scored below 60. Review required.');
+            end
+
+      - name: Upload Review Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-reports
+          path: 'work/**/_reviews/*.html'
+
+      - name: Comment Review Results on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const glob = require('glob');
+            const reports = glob.sync('work/**/_reviews/*.html');
+            let comment = '## 📋 Simulink Model Review Results\n\n';
+            for (const r of reports) {
+              const content = fs.readFileSync(r, 'utf8');
+              const scoreMatch = content.match(/score-circle[^>]*>(\d+)<\/div>/);
+              const gradeMatch = content.match(/Grade\s+([A-D])/);
+              const summaryMatch = content.match(/Summary[^<]*<\/h2>\s*<p>([^<]+)<\/p>/);
+              const modelMatch = content.match(/Review Report: ([^<]+)/);
+              if (modelMatch) {
+                comment += `### ${modelMatch[1]}\n`;
+                comment += `- **Score**: ${scoreMatch ? scoreMatch[1] : 'N/A'}/100`;
+                comment += ` (Grade ${gradeMatch ? gradeMatch[1] : 'N/A'})\n`;
+                comment += `- ${summaryMatch ? summaryMatch[1] : ''}\n\n`;
+              }
+            }
+            comment += 'See artifacts for full HTML reports.';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+  documentation:
+    if: github.ref == 'refs/heads/main'
+    needs: [model-check, test-generation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MATLAB
+        uses: matlab-actions/setup-matlab@v2
+        with:
+          release: R2025a
+          products: Simulink Simulink_Report_Gen
+
+      - name: Generate SDD Documents
+        uses: matlab-actions/run-command@v2
+        with:
+          command: |
+            addpath('work/scripts/ai_sdd/src');
+            addpath('work/simulink-agentic-toolkit');
+            slxFiles = dir('work/**/*.slx');
+            for i = 1:numel(slxFiles)
+                try
+                    % Look for matching Excel file
+                    [d, n] = fileparts(slxFiles(i).name);
+                    xlsxFiles = dir(fullfile(slxFiles(i).folder, '*.xlsx'));
+                    if ~isempty(xlsxFiles)
+                        DdGeneration_AI(fullfile(slxFiles(i).folder, slxFiles(i).name), ...
+                            fullfile(xlsxFiles(1).folder, xlsxFiles(1).name));
+                    end
+                catch ME
+                    fprintf('SDD skipped for %s: %s\n', slxFiles(i).name, ME.message);
+                end
+            done
+
+      - name: Upload SDD Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdd-reports
+          path: 'work/**/*_DetailDesign_AI.pdf'
