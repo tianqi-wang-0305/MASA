@@ -70,7 +70,7 @@ satk_initialize
 autoModeling/
 ├── .github/
 │   ├── AGENTS.md              ← Agent 总说明
-│   ├── prompts/               ← 13 个 Slash Command 定义
+│   ├── prompts/               ← 12 个 Slash Command 定义（唯一入口）
 │   └── workflows/
 │       └── simulink-ci.yml.disabled  ← CI 流水线（已暂停）
 │
@@ -81,13 +81,24 @@ autoModeling/
 │   ├── scripts/                     ← 自动化脚本
 │   │   ├── runAIPipeline.m          ← 统一入口
 │   │   ├── ai_sdd/                 ← SDD 文档生成
-│   │   ├── test_gen/               ← 测试生成
-│   │   ├── model_gen/              ← 模型搭建 + Skill
+│   │   │   ├── DdGeneration_AI.m   ← AI 增强 SDD 生成器
+│   │   │   ├── DdGeneration_ASPICE.m ← ASPICE 基线版
+│   │   │   ├── analyzeModelDeepForSDD.m ← 深度分析引擎
+│   │   │   ├── .headless/          ← 无头模式工具
+│   │   │   └── ref/                ← ASPICE 模板
 │   │   ├── review_gen/             ← 综合 Review
-│   │   ├── code_gen/               ← 代码生成
+│   │   │   ├── reviewModel.m       ← Review 引擎（7 项检查）
+│   │   │   ├── check_naming_convention.m ← 命名规范
+│   │   │   ├── check_connection_rules.m  ← 连线完整性
+│   │   │   ├── check_hierarchy_integrity.m ← 层级完整性
+│   │   │   ├── report_utils.m      ← 报告工具
+│   │   │   └── ref/                ← 连线/层级规范
+│   │   ├── test_gen/               ← Gherkin 测试生成
+│   │   ├── quality_gen/            ← Model Advisor 门限
+│   │   ├── model_gen/              ← 模型搭建 + Skill
+│   │   ├── code_gen/               ← 代码生成流水线
 │   │   ├── data_mng/               ← Excel ↔ 模型 数据管理
-│   │   ├── chk_mng/                ← 端口检查
-│   │   ├── quality_gen/            ← 质量门限
+│   │   ├── chk_mng/                ← 端口类型检查
 │   │   ├── coverage_gen/           ← 覆盖率分析
 │   │   ├── sensitivity_gen/        ← 敏感性分析
 │   │   ├── layout_gen/             ← 自动布局
@@ -95,15 +106,11 @@ autoModeling/
 │   │   ├── design_gen/             ← 设计文档
 │   │   └── hooks/                  ← Git Hooks
 │   │
-│   ├── skills/                     ← 自定义 AI Skills
-│   │   ├── sdd_skill/              ← SDD 详细设计生成
-│   │   └── static_skill/           ← 静态审计检查
-│   │
 │   ├── pkg/+NoneSAR/               ← 自定义存储类
-│   ├── tst_mdl/                    ← 测试模型
-│   └── ext/                        ← 扩展工具
+│   └── tst_mdl/                    ← 测试模型
 │
-└── .gitignore
+├── .gitignore
+└── README.md
 ```
 
 ---
@@ -129,15 +136,18 @@ autoModeling/
 | `data_mng/src/export_simulink_top_ports.m` | 模型端口 → Excel 导出 |
 | `data_mng/src/ImportARXML.m` | ARXML → Simulink SWC 导入 |
 | `data_mng/src/batch_color_models.m` | 批量模型着色（端口/标定） |
+| `data_mng/src/autoSetPortDataTypes.m` | 信号名前缀 → 端口数据类型 |
 
 ### 检查与审计
 
 | 脚本 | 说明 |
 |------|------|
-| `static_skill/scripts/check_naming_convention.m` | 命名规范 + 信号/标定前缀校验 |
-| `static_skill/scripts/check_connection_rules.m` | 连线完整性检查 |
-| `static_skill/scripts/check_hierarchy_integrity.m` | 层级完整性检查 |
+| `review_gen/src/check_naming_convention.m` | 命名规范 + 信号/标定前缀校验 |
+| `review_gen/src/check_connection_rules.m` | 连线完整性检查 |
+| `review_gen/src/check_hierarchy_integrity.m` | 层级完整性检查 |
 | `chk_mng/src/check_io_port_datatype_definition.m` | 端口数据类型显式定义检查 |
+| `quality_gen/src/checkModelWithThreshold.m` | Model Advisor 门限检查 |
+| `review_gen/src/reviewModel.m` | 综合 Review（7 项合一） |
 
 ---
 
@@ -173,18 +183,6 @@ cal_{type}{Name}    例如: cal_u16Threshold
 
 ---
 
-## Skills（AI Agent 知识库）
-
-| Skill | 位置 | 用途 |
-|-------|------|------|
-| **build-simulink-from-requirements** | `model_gen/.github/skills/` | 从需求搭建 Simulink 模型 |
-| **sdd-detail-design-generation** | `skills/sdd_skill/` | ASPICE 详细设计文档生成 |
-| **simulink-static-audit** | `skills/static_skill/` | 模型静态审计检查 |
-
-另有 9 个来自 MathWorks Toolkit 的 MBD 技能（建模、测试、仿真等）。
-
----
-
 ## 环境依赖
 
 | 组件 | 版本要求 | 用途 |
@@ -195,6 +193,13 @@ cal_{type}{Name}    例如: cal_u16Threshold
 | Simulink Report Generator | 可选 | PDF 报告生成 |
 | Simulink Check | 可选 | Model Advisor 检查 |
 | Embedded Coder | 可选 | 代码生成 |
+
+## Submodules
+
+| 仓库 | 路径 | 用途 |
+|------|------|------|
+| [matlab/simulink-agentic-toolkit](https://github.com/matlab/simulink-agentic-toolkit) | `work/simulink-agentic-toolkit/` | MCP 工具 + MBD 技能 |
+| [matlab/matlab-mcp-core-server](https://github.com/matlab/matlab-mcp-core-server) | `work/matlab-mcp-core-server/` | MATLAB MCP 服务器 |
 
 ---
 
