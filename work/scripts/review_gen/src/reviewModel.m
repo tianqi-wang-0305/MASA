@@ -62,8 +62,6 @@ function result = reviewModel(modelName, varargin)
     scriptDir = fileparts(mfilename('fullpath'));
     addpath(fullfile(scriptDir, '..', '..', 'quality_gen', 'src'));
     addpath(fullfile(scriptDir, '..', '..', 'chk_mng', 'src'));
-    staticSkillDir = fullfile(scriptDir, '..', '..', '..', 'skills', 'static_skill', 'scripts');
-    if exist(staticSkillDir, 'dir'), addpath(staticSkillDir); end
 
     %% Check 1: Model Advisor with threshold
     fprintf('[1/7] Model Advisor check...\n');

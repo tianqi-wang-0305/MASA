@@ -58,15 +58,7 @@ function pdfFile = DdGeneration_AI(modelPath, excelPath, varargin)
     fprintf('Loading model: %s\n', modelName);
     load_system(modelPath);
 
-    % Add SDD skill to path for helper functions
-    sddSkillDir = fileparts(which('DdGeneration_ASPICE'));
-    if isempty(sddSkillDir)
-        % Try relative path
-        sddSkillDir = fullfile(fileparts(mfilename('fullpath')), '..', '..', '..', 'skills', 'sdd_skill');
-    end
-    if exist(sddSkillDir, 'dir')
-        addpath(sddSkillDir);
-    end
+    % DdGeneration_ASPICE.m is now in the same directory
     loadReportDependencies(modelDir);
 
     %% 3) Generate PDF report

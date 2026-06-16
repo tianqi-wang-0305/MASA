@@ -1,50 +1,52 @@
 ---
 name: simulink-static-audit
-description: 对 Simulink 模型执行命名规范、连线完整性、层级统计和 Model Advisor 检查，并输出 HTML 与 JSON 审计结果。
+description: "对 Simulink 模型执行命名规范、连线完整性、层级统计和 Model Advisor 检查，并输出 HTML 审计结果。现在已被 /reviewModel slash command 集成。"
 license: MathWorks BSD-3-Clause
 metadata:
-  author: Copilot
-  version: "1.1"
+  author: autoModeling
+  version: "2.0"
 ---
 
-# Simulink 静态审计技能
+# Simulink 静态审计
 
-## 适用场景
-使用这个技能来快速判断一个 Simulink 模型是否满足团队静态建模规范，重点覆盖命名、连线、层级和 Model Advisor 检查。
+> ⚠ **此 SKILL 的检查功能已被 `/reviewModel` 集成，推荐直接使用 slash command。**
 
-## 核心能力
-- 命名规范检查：块名、信号线名、子系统名、Stateflow 图名是否符合 `^[A-Za-z][A-Za-z0-9_]*$`
-- 通用名称预警：识别 `Subsystem`、`Chart`、`Gain`、`Sum` 这类占位命名
-- 连线完整性检查：识别悬空信号线、未连接输入端口、未连接输出端口
-- 层级统计：统计子系统数量、顶层模块数量、最大层级深度、游离模块数量
-- Model Advisor 检查：运行一组默认检查并写入报告
-- 报告输出：生成 HTML 报告，同时打印 JSON 结果，便于外部脚本解析
+## 使用方式
 
-## 统一 Review 入口
+在 VS Code 聊天中直接使用：
 
-推荐使用 `reviewModel.m` 一次性运行所有检查：
-
-```matlab
-result = reviewModel('Model.slx');
+```
+/reviewModel Model.slx
 ```
 
-这会自动执行：
-1. Model Advisor（门限控制）
-2. 命名规范
-3. 连线完整性
-4. 层级完整性
-5. 端口数据类型定义
-6. model_check（MCP 工具）
-7. AI 设计审查（反模式检测）
+这会自动运行以下 7 项检查并汇总评分（A-D）：
 
-输出包含评分（A-D 等级）、问题分类（critical/major/minor）、HTML 报告。
-在 VS Code 中使用 `/reviewModel` slash command 一键运行。
+| # | 检查项 | 严重度 |
+|---|--------|--------|
+| 1 | Model Advisor（50+ 检查） | critical |
+| 2 | 命名规范 | minor |
+| 3 | 连线完整性 | major |
+| 4 | 层级完整性 | major |
+| 5 | 端口数据类型 | major |
+| 6 | model_check（MCP） | critical |
+| 7 | AI 设计审查 | varies |
 
-## 推荐流程
-1. 确认模型路径和依赖文件可访问。
-2. 运行 `reviewModel('Model.slx')` 获取综合审查报告。
-3. 查看评分和等级，优先修复 critical/major 问题。
-4. 打开 `_reviews/` 下生成的 HTML 报告，查看逐条问题和 AI 建议。
+## 底层脚本位置
+
+这些检查的 MATLAB 脚本已移至：
+
+| 脚本 | 新位置 |
+|------|--------|
+| `check_naming_convention.m` | `work/scripts/review_gen/src/` |
+| `check_connection_rules.m` | `work/scripts/review_gen/src/` |
+| `check_hierarchy_integrity.m` | `work/scripts/review_gen/src/` |
+| `run_model_advisor.m` | `work/scripts/quality_gen/src/` |
+| `naming_convention.md` | `work/scripts/review_gen/src/` |
+
+## 参考文档
+
+- `ref/connection_rules.md` — 连线规范
+- `ref/hierarchy_rules.md` — 层级规范
 
 ## 输入模板
 如果你希望把这个 skill 作为斜杠提示词使用，可以直接套用 `prompt_template.txt` 的格式，填入模型路径后执行。

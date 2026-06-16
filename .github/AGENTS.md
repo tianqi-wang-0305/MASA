@@ -26,29 +26,35 @@ Type `/` in chat to see these commands:
 | Skill | Location | Use Case |
 |-------|----------|----------|
 | **build-simulink-from-requirements** | `work/scripts/model_gen/.github/skills/` | Guides the AI in transforming natural language requirements into Simulink models using model_edit |
+| **sdd-detail-design-generation** | `.github/skills/sdd_skill/` | SDD detailed design doc generation (legacy, use `/generateAISDD`) |
+| **simulink-static-audit** | `.github/skills/static_skill/` | Model static audit checks (legacy, use `/reviewModel`) |
+
+All 3 skills are symlinked to `.github/skills/` and discoverable by the AI agent via `/`.
 
 ## Project Structure
 
 ```
 work/
 ├── simulink-agentic-toolkit/     ← MathWorks MCP-based Simulink toolkit
-│   ├── tools/                    ← MCP tools (model_read, model_edit, etc.)
-│   └── skills-catalog/           ← MBD skills for AI agents
+├── matlab-mcp-core-server/       ← MATLAB MCP Core Server
 │
 ├── scripts/
 │   ├── runAIPipeline.m           ← Unified entry point
 │   ├── ai_sdd/src/               ← AI-Enhanced SDD generation
+│   │   ├── DdGeneration_AI.m
+│   │   ├── DdGeneration_ASPICE.m
 │   │   ├── analyzeModelDeepForSDD.m
-│   │   └── DdGeneration_AI.m
+│   │   └── .headless/
+│   ├── review_gen/src/           ← Model review + naming/connection checks
+│   │   ├── reviewModel.m
+│   │   ├── check_naming_convention.m
+│   │   ├── check_connection_rules.m
+│   │   ├── check_hierarchy_integrity.m
+│   │   └── report_utils.m
 │   ├── test_gen/src/             ← Auto Test Generation
-│   │   └── generateModelTests.m
-│   └── model_gen/                ← Generic model building
-│       ├── .github/skills/       ← build-simulink-from-requirements skill
-│       └── src/                  ← Generic model builder from spec
-│
-└── skills/
-    ├── sdd_skill/                ← SDD detailed design generation skill
-    └── static_skill/             ← Static model checking skill
+│   ├── quality_gen/src/          ← Model Advisor threshold
+│   ├── model_gen/                ← Generic model building + skill
+│   ├── ...
 ```
 
 ## Key MCP Tools

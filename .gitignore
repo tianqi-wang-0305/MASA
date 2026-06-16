@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+*/.DS_Store
+
+# MATLAB
+*.asv
+*.slxc
+*.mex*
+slprj/
+codegen/
+
+# Simulink cache
+work/**/slprj/
+work/**/codegen/
+
+# Generated reports
+work/**/_reviews/
+work/**/_tests/
+work/**/reports/
+work/**/*_report.html
+work/**/*_report.json
+work/**/*_knowledge.json
+work/**/*_trace_matrix.html
+work/**/*_coverage_report.html
+work/**/*_sensitivity_report.html
+work/**/*_validation_report.html
+work/**/*_naming_report.html
+work/**/*_port_types_report.html
+work/**/*_build_report.html
+work/**/*_layout_report.html
+work/**/*_ModelAdvisor_*.html
+
+# Generated models
+work/**/test_model.slx
+
+# Temp scripts
+work/scripts/run_*.m
