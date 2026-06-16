@@ -45,15 +45,21 @@ function result = reviewModel(modelName, varargin)
     outputDir = p.Results.OutputDir;
     aiMode = p.Results.AIMode;
 
-    [modelDir, modelBase, ~] = fileparts(modelName);
-    if isempty(modelDir), modelDir = pwd; modelBase = modelName; end
+    [modelDir, modelBase, modelExt] = fileparts(modelName);
+    if isempty(modelDir), modelDir = pwd; end
+    if isempty(modelExt)
+        modelFile = fullfile(modelDir, [modelBase '.slx']);
+    else
+        modelFile = fullfile(modelDir, [modelBase modelExt]);
+    end
     if isempty(outputDir), outputDir = fullfile(modelDir, '_reviews'); end
     if ~exist(outputDir, 'dir'), mkdir(outputDir); end
 
     result.modelName = modelBase;
+    result.modelPath = modelFile;
 
     % Add common paths
-    scriptDir = fileparts(mfilename('fullpart'));
+    scriptDir = fileparts(mfilename('fullpath'));
     addpath(fullfile(scriptDir, '..', '..', 'quality_gen', 'src'));
     addpath(fullfile(scriptDir, '..', '..', 'chk_mng', 'src'));
     staticSkillDir = fullfile(scriptDir, '..', '..', '..', 'skills', 'static_skill', 'scripts');
@@ -62,7 +68,7 @@ function result = reviewModel(modelName, varargin)
     %% Check 1: Model Advisor with threshold
     fprintf('[1/7] Model Advisor check...\n');
     try
-        maResult = checkModelWithThreshold(modelName, 'ErrorThreshold', 100, 'WarningThreshold', 999);
+        maResult = checkModelWithThreshold(modelFile, 'ErrorThreshold', 100, 'WarningThreshold', 999);
         result.checks.modelAdvisor = struct(...
             'passed', maResult.passed, ...
             'errors', maResult.errors, ...
@@ -78,7 +84,7 @@ function result = reviewModel(modelName, varargin)
     %% Check 2: Naming convention
     fprintf('[2/7] Naming convention check...\n');
     try
-        load_system(modelBase);
+        load_system(modelFile);
         [namingViolations, namingStats] = check_naming_convention(modelBase);
         % Generate naming HTML report
         namingReport = '';
@@ -191,9 +197,9 @@ function result = reviewModel(modelName, varargin)
 
     %% Generate summary
     totalIssues = numel(result.issues);
-    criticalCount = sum(arrayfun(@(x) strcmp(x.severity, 'critical'), result.issues));
-    majorCount = sum(arrayfun(@(x) strcmp(x.severity, 'major'), result.issues));
-    minorCount = sum(arrayfun(@(x) strcmp(x.severity, 'minor'), result.issues));
+    criticalCount = sum(cellfun(@(x) strcmp(x.severity, 'critical'), result.issues));
+    majorCount = sum(cellfun(@(x) strcmp(x.severity, 'major'), result.issues));
+    minorCount = sum(cellfun(@(x) strcmp(x.severity, 'minor'), result.issues));
 
     grade = getGrade(result.score);
     result.summary = sprintf('Review: %s (score: %d/100, issues: %d critical, %d major, %d minor)', ...
@@ -336,9 +342,9 @@ function reportFile = generateReviewReport(result, outputDir)
     fprintf(fid, '<p>%s</p>\n', result.summary);
     fprintf(fid, '<table><tr><th>Metric</th><th>Value</th></tr>\n');
     fprintf(fid, '<tr><td>Total Issues</td><td>%d</td></tr>\n', numel(result.issues));
-    critC = sum(arrayfun(@(x) strcmp(x.severity,'critical'), result.issues));
-    majC = sum(arrayfun(@(x) strcmp(x.severity,'major'), result.issues));
-    minC = sum(arrayfun(@(x) strcmp(x.severity,'minor'), result.issues));
+    critC = sum(cellfun(@(x) strcmp(x.severity,'critical'), result.issues));
+    majC = sum(cellfun(@(x) strcmp(x.severity,'major'), result.issues));
+    minC = sum(cellfun(@(x) strcmp(x.severity,'minor'), result.issues));
     fprintf(fid, '<tr><td>Critical</td><td>%d</td></tr>\n', critC);
     fprintf(fid, '<tr><td>Major</td><td>%d</td></tr>\n', majC);
     fprintf(fid, '<tr><td>Minor</td><td>%d</td></tr>\n', minC);

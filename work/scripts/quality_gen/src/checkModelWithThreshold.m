@@ -33,13 +33,21 @@ function result = checkModelWithThreshold(modelName, varargin)
     checks = p.Results.Checks;
     outputDir = p.Results.OutputDir;
 
-    [~, modelBase, ~] = fileparts(modelName);
+    [modelDir, modelBase, modelExt] = fileparts(modelName);
+    if isempty(modelDir)
+        modelDir = pwd;
+    end
+    if isempty(modelExt)
+        modelFile = fullfile(modelDir, [modelBase '.slx']);
+    else
+        modelFile = fullfile(modelDir, [modelBase modelExt]);
+    end
     if isempty(modelBase)
-        modelBase = modelName;
+        [~, modelBase] = fileparts(modelFile);
     end
 
     if isempty(outputDir)
-        outputDir = fileparts(which(modelBase));
+        outputDir = modelDir;
         if isempty(outputDir)
             outputDir = pwd;
         end
@@ -49,7 +57,7 @@ function result = checkModelWithThreshold(modelName, varargin)
     fprintf('[1/3] Running Model Advisor on: %s\n', modelBase);
 
     try
-        load_system(modelBase);
+        load_system(modelFile);
         modelHandle = get_param(modelBase, 'Handle');
 
         % Create Model Advisor
