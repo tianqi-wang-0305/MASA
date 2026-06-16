@@ -80,10 +80,16 @@ function result = reviewModel(modelName, varargin)
     try
         load_system(modelBase);
         [namingViolations, namingStats] = check_naming_convention(modelBase);
+        % Generate naming HTML report
+        namingReport = '';
+        try
+            namingReport = generateNamingReport(namingViolations, namingStats, modelBase, outputDir);
+        catch, end
         result.checks.naming = struct(...
             'violations', {namingViolations}, ...
             'stats', namingStats, ...
-            'count', numel(namingViolations));
+            'count', numel(namingViolations), ...
+            'reportFile', namingReport);
         result.score = result.score - numel(namingViolations) * 1;
         for i = 1:numel(namingViolations)
             result.issues{end+1} = struct(...
