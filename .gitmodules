@@ -1,6 +1,6 @@
 [submodule "work/simulink-agentic-toolkit"]
 	path = work/simulink-agentic-toolkit
 	url = https://github.com/matlab/simulink-agentic-toolkit.git
-[submodule "work/ext/matlab-mcp-core-server"]
-	path = work/ext/matlab-mcp-core-server
+[submodule "work/matlab-mcp-core-server"]
+	path = work/matlab-mcp-core-server
 	url = https://github.com/matlab/matlab-mcp-core-server.git
