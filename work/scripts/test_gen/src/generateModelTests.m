@@ -544,7 +544,7 @@ function reportFile = generateTestReport(testResults, outputDir)
         return;
     end
 
-    fprintf(fid, '<!DOCTYPE html>\n<html>\n<head>\n');
+    fprintf(fid, '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Test Report - %s</title>\n', testResults.modelName);
     fprintf(fid, '<style>\n');
     fprintf(fid, 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 40px; }\n');
