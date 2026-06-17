@@ -320,6 +320,7 @@ function map = loadPrefixMapping(mappingFile)
         map('bool') = 'boolean';
         map('b')   = 'boolean';
         map('enum') = 'Enum: auto';
+        map('e')   = 'Enum: auto';
     end
 end
 
