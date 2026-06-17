@@ -199,7 +199,8 @@ function reportFile = generateValidationReport(result, outputDir, modelName, exc
     reportFile = fullfile(outputDir, [modelName '_validation_report.html']);
     fid = fopen(reportFile, 'w');
 
-    fprintf(fid, '<!DOCTYPE html>\n<html><head>\n');
+    fprintf(fid, '<!DOCTYPE html>\n<html><head>
+<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Validation Report - %s</title>\n', modelName);
     fprintf(fid, '<style>\n');
     fprintf(fid, 'body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:40px}\n');

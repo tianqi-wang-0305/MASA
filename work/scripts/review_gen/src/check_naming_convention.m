@@ -172,7 +172,8 @@ function reportFile = generateNamingReport(violations, stats, systemName, output
     if nargin < 4, outputDir = pwd; end
     reportFile = fullfile(outputDir, [systemName '_naming_report.html']);
     fid = fopen(reportFile, 'w');
-    fprintf(fid, '<!DOCTYPE html><html><head>\n');
+    fprintf(fid, '<!DOCTYPE html><html><head>
+<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Naming Convention Report - %s</title>\n', systemName);
     fprintf(fid, '<style>\n');
     fprintf(fid, 'body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:40px;background:#fafafa}\n');

@@ -170,7 +170,7 @@ function reportFile = generateCoverageReport(result, outputDir, modelName, thres
     reportFile = fullfile(outputDir, [modelName '_coverage_report.html']);
     fid = fopen(reportFile, 'w');
 
-    fprintf(fid, '<!DOCTYPE html>\n<html><head>\n');
+    fprintf(fid, '<!DOCTYPE html>\n<html><head>\n<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Coverage Report - %s</title>\n', modelName);
     fprintf(fid, '<style>\n');
     fprintf(fid, 'body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:40px}\n');

@@ -191,7 +191,8 @@ end
 function reportFile = generateBuildReport(spec, outputDir)
     reportFile = fullfile(outputDir, [spec.modelName '_build_report.html']);
     fid = fopen(reportFile, 'w');
-    fprintf(fid, '<!DOCTYPE html><html><head>\n');
+    fprintf(fid, '<!DOCTYPE html><html><head>
+<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Build Report - %s</title>\n', spec.modelName);
     fprintf(fid, '<style>body{font-family:-apple-system,sans-serif;margin:40px}\n');
     fprintf(fid, 'h1{color:#333;border-bottom:2px solid #4CAF50;padding-bottom:10px}\n');

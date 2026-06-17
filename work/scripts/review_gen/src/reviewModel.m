@@ -314,7 +314,7 @@ function reportFile = generateReviewReport(result, outputDir)
 
     gradeColor = struct('A', '#4CAF50', 'B', '#8BC34A', 'C', '#FF9800', 'D', '#f44336');
 
-    fprintf(fid, '<!DOCTYPE html>\n<html><head>\n');
+    fprintf(fid, '<!DOCTYPE html>\n<html><head>\n<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Review Report - %s</title>\n', result.modelName);
     fprintf(fid, '<style>\n');
     fprintf(fid, 'body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:40px;background:#fafafa}\n');
@@ -464,11 +464,17 @@ end
 
 %% ================== Utility ==================
 
+function grade = getGrade(score)
+    if score >= 90, grade = 'A';
+    elseif score >= 75, grade = 'B';
+    elseif score >= 60, grade = 'C';
+    else, grade = 'D'; end
+end
+
 function s = escapeHtml(s)
     s = strrep(s, '&', '&amp;');
     s = strrep(s, '<', '&lt;');
     s = strrep(s, '>', '&gt;');
-end
 end
 
 function val = getFieldStruct(s, field, default)
@@ -477,10 +483,4 @@ function val = getFieldStruct(s, field, default)
     else
         val = default;
     end
-end
-
-function s = escapeHtml(s)
-    s = strrep(s, '&', '&amp;');
-    s = strrep(s, '<', '&lt;');
-    s = strrep(s, '>', '&gt;');
 end
