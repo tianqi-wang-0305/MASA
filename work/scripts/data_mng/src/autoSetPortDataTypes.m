@@ -31,8 +31,9 @@ function result = autoSetPortDataTypes(modelName, varargin)
 %       result = autoSetPortDataTypes('Model.slx', 'Scope', 'Model/Subsystem');
 
     fprintf('=== Auto-Set Port Data Types from Signal Names ===\n\n');
-    result = struct('changed', {}, 'skipped', {}, 'errors', {}, ...
-        'totalInports', 0, 'totalOutports', 0, 'changedCount', 0);
+    result = struct('changed', {{}}, 'skipped', {{}}, 'errors', {{}}, ...
+        'totalInports', 0, 'totalOutports', 0, 'changedCount', 0, ...
+        'reportFile', '');
 
     %% Parse inputs
     p = inputParser;
@@ -47,8 +48,18 @@ function result = autoSetPortDataTypes(modelName, varargin)
     dryRun = p.Results.DryRun;
     mappingFile = p.Results.MappingFile;
 
-    [~, modelBase, ~] = fileparts(modelName);
-    if isempty(modelBase), modelBase = modelName; end
+    [modelDir, modelBase, modelExt] = fileparts(modelName);
+    if isempty(modelDir)
+        modelDir = pwd;
+    end
+    if isempty(modelExt)
+        modelFile = fullfile(modelDir, [modelBase '.slx']);
+    else
+        modelFile = fullfile(modelDir, [modelBase modelExt]);
+    end
+    if isempty(modelBase)
+        [~, modelBase] = fileparts(modelFile);
+    end
 
     %% Load prefix→type mapping
     prefixMap = loadPrefixMapping(mappingFile);
@@ -56,7 +67,7 @@ function result = autoSetPortDataTypes(modelName, varargin)
 
     %% Load model
     fprintf('\n[1/3] Loading model: %s\n', modelBase);
-    load_system(modelBase);
+    load_system(modelFile);
 
     %% Find all ports recursively
     fprintf('[2/3] Scanning ports...\n');
@@ -119,6 +130,11 @@ function result = autoSetPortDataTypes(modelName, varargin)
     result.errors = errors;
     result.changedCount = numel(changed);
 
+    if ~dryRun
+        fprintf('\nSaving model: %s\n', modelBase);
+        save_system(modelBase);
+    end
+
     %% Summary
     fprintf('\n=== Summary ===\n');
     fprintf('Total ports: %d (In: %d, Out: %d)\n', ...
@@ -161,8 +177,7 @@ end
 function reportFile = generatePortReport(result, modelName, dryRun)
     reportFile = fullfile(pwd, [modelName '_port_types_report.html']);
     fid = fopen(reportFile, 'w');
-    fprintf(fid, '<!DOCTYPE html><html><head>
-<meta charset="UTF-8">\n');
+    fprintf(fid, '<!DOCTYPE html><html><head>\n<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Port Data Type Report - %s</title>\n', modelName);
     fprintf(fid, '<style>body{font-family:-apple-system,sans-serif;margin:40px}\n');
     fprintf(fid, 'h1{color:#333;border-bottom:2px solid #9C27B0;padding-bottom:10px}\n');
