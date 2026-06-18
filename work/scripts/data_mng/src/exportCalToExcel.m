@@ -35,7 +35,7 @@ function result = exportCalToExcel(modelName, varargin)
 
     %% Load model and find calibration blocks
     fprintf('[1/3] Scanning for calibration parameters (cal_ prefix)...\n');
-    load_system(modelBase);
+    load_system(modelName);
 
     if scanSubsystems
         searchDepth = 'all';

@@ -35,10 +35,9 @@ function result = exportSignalsToExcel(modelName, varargin)
 
     %% Load model and find ports
     fprintf('[1/3] Scanning model ports...\n');
-    load_system(modelBase);
+    load_system(modelName);
 
     if includeNested
-        searchDepth = 'all';
         inports = find_system(modelBase, 'LookUnderMasks', 'all', 'BlockType', 'Inport');
         outports = find_system(modelBase, 'LookUnderMasks', 'all', 'BlockType', 'Outport');
     else
@@ -54,24 +53,48 @@ function result = exportSignalsToExcel(modelName, varargin)
     for i = 1:numel(inports)
         blk = inports{i};
         if strcmp(blk, modelBase), continue; end
-        info = getPortInfo(blk, 'Input', typePrefixes);
-        if ~isempty(info), ports{end+1} = info; end %#ok<AGROW>
+        try
+            info = struct();
+            info.name = get_param(blk, 'Name');
+            info.direction = 'Input';
+            info.dataType = get_param(blk, 'OutDataTypeStr');
+            info.dimensions = '';
+            info.sampleTime = get_param(blk, 'SampleTime');
+            info.signalName = '';
+            info.path = blk;
+            info.prefixStatus = checkNamingPrefix(info.name, info.dataType, typePrefixes);
+            ports{end+1} = info;
+        catch
+        end
     end
 
     % Process Outports
     for i = 1:numel(outports)
         blk = outports{i};
         if strcmp(blk, modelBase), continue; end
-        info = getPortInfo(blk, 'Output', typePrefixes);
-        if ~isempty(info), ports{end+1} = info; end %#ok<AGROW>
+        try
+            info = struct();
+            info.name = get_param(blk, 'Name');
+            info.direction = 'Output';
+            info.dataType = get_param(blk, 'OutDataTypeStr');
+            info.dimensions = '';
+            info.sampleTime = get_param(blk, 'SampleTime');
+            info.signalName = '';
+            info.path = blk;
+            info.prefixStatus = checkNamingPrefix(info.name, info.dataType, typePrefixes);
+            ports{end+1} = info;
+        catch
+        end
     end
 
-    inCount = sum(arrayfun(@(p) strcmp(p.direction, 'Input'), ports));
-    outCount = sum(arrayfun(@(p) strcmp(p.direction, 'Output'), ports));
+    inCount = 0; outCount = 0;
+    for i = 1:numel(ports)
+        if strcmp(ports{i}.direction, 'Input'), inCount = inCount + 1;
+        else, outCount = outCount + 1; end
+    end
     fprintf('      Found %d inputs, %d outputs\n', inCount, outCount);
-    result.inputCount = inCount;
-    result.outputCount = outCount;
-    result.ports = ports;
+    result = struct('inputCount', inCount, 'outputCount', outCount, ...
+        'outputFile', outputFile, 'ports', {ports});
 
     if isempty(ports)
         fprintf('      No ports found.\n');
@@ -99,67 +122,31 @@ function result = exportSignalsToExcel(modelName, varargin)
     end
 end
 
-function info = getPortInfo(blockPath, direction, typePrefixes)
-% Extract port information
-    info = [];
-    try
-        name = get_param(blockPath, 'Name');
-        dt = get_param(blockPath, 'OutDataTypeStr');
-        dims = get_param(blockPath, 'Dimensions');
-        st = get_param(blockPath, 'SampleTime');
-
-        % Get connected signal name
-        sigName = '';
-        try
-            lineHandle = get_param(blockPath, 'LineHandles');
-            if direction == "Input"
-                lh = lineHandle.Outport;
-            else
-                lh = lineHandle.Inport;
-            end
-            if lh ~= -1
-                sigName = get_param(lh, 'Name');
-            end
-        catch, end
-
-        % Check naming convention compliance
-        prefixStatus = '无前缀';
-        for t = 1:numel(typePrefixes)
-            p = typePrefixes{t};
-            if startsWith(name, p)
-                rest = name(length(p)+1:end);
-                if ~isempty(rest) && isletter(rest(1))
-                    dtFromName = typeMapDirect(p);
-                    if strcmp(dtFromName, dt) || contains(dt, 'Inherit')
-                        prefixStatus = ['✅ ' p];
+function status = checkNamingPrefix(name, dataType, typePrefixes)
+% Check if port name follows naming convention
+    typeMap = containers.Map();
+    typeMap('s8')='int8'; typeMap('s16')='int16'; typeMap('s32')='int32'; typeMap('s64')='int64';
+    typeMap('u8')='uint8'; typeMap('u16')='uint16'; typeMap('u32')='uint32'; typeMap('u64')='uint64';
+    typeMap('f32')='single'; typeMap('f64')='double'; typeMap('f16')='half';
+    typeMap('b')='boolean'; typeMap('bool')='boolean';
+    status = '无前缀';
+    for t = 1:numel(typePrefixes)
+        p = typePrefixes{t};
+        if startsWith(name, p)
+            rest = name(length(p)+1:end);
+            if ~isempty(rest) && isletter(rest(1))
+                if isKey(typeMap, p)
+                    expected = typeMap(p);
+                    if strcmp(expected, dataType) || contains(dataType, 'Inherit')
+                        status = ['✅ ' p];
                     else
-                        prefixStatus = ['⚠ ' p '→' dtFromName '(实际:' dt ')'];
+                        status = ['⚠ ' p '→' expected '(实际:' dataType ')'];
                     end
-                    break;
                 end
+                break;
             end
         end
-
-        info = struct();
-        info.name = name;
-        info.direction = direction;
-        info.dataType = dt;
-        info.dimensions = dims;
-        info.sampleTime = st;
-        info.signalName = sigName;
-        info.prefixStatus = prefixStatus;
-        info.path = blockPath;
-    catch
     end
-end
-
-function dt = typeMapDirect(prefix)
-    m = containers.Map();
-    m('s8')='int8'; m('s16')='int16'; m('s32')='int32'; m('s64')='int64';
-    m('u8')='uint8'; m('u16')='uint16'; m('u32')='uint32'; m('u64')='uint64';
-    m('f32')='single'; m('f64')='double'; m('f16')='half';
-    m('b')='boolean'; m('bool')='boolean';
-    if isKey(m, prefix), dt = m(prefix); else, dt = ''; end
 end
 
 function writeSignalsToExcel(ports, outputFile)
