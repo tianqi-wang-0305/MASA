@@ -96,12 +96,25 @@ function pdfFile = DdGeneration_AI(modelPath, excelPath, varargin)
     %% ---- Input/Output/Calibration Sections ----
     if ~isempty(fieldnames(knowledgeBase.interfaceInfo))
         interfaceData = knowledgeBase.interfaceInfo;
-        append(rpt, buildInputSignalSection(interfaceData.Interface));
-        append(rpt, mlreportgen.dom.PageBreak);
-        append(rpt, buildOutputSignalSection(interfaceData.Interface));
-        append(rpt, mlreportgen.dom.PageBreak);
-        append(rpt, buildCalibrationSection(interfaceData.Calibration));
-        append(rpt, mlreportgen.dom.PageBreak);
+        hasInterface = isfield(interfaceData, 'Interface') && ...
+            isfield(interfaceData.Interface, 'Items') && ...
+            istable(interfaceData.Interface.Items) && ...
+            height(interfaceData.Interface.Items) > 0;
+        hasCal = isfield(interfaceData, 'Calibration') && ...
+            isfield(interfaceData.Calibration, 'Items') && ...
+            istable(interfaceData.Calibration.Items) && ...
+            height(interfaceData.Calibration.Items) > 0;
+
+        if hasInterface
+            append(rpt, buildInputSignalSection(interfaceData.Interface));
+            append(rpt, mlreportgen.dom.PageBreak);
+            append(rpt, buildOutputSignalSection(interfaceData.Interface));
+            append(rpt, mlreportgen.dom.PageBreak);
+        end
+        if hasCal
+            append(rpt, buildCalibrationSection(interfaceData.Calibration));
+            append(rpt, mlreportgen.dom.PageBreak);
+        end
     end
 
     %% ---- Subsystem Navigation Page ----
@@ -131,10 +144,15 @@ function pdfFile = DdGeneration_AI(modelPath, excelPath, varargin)
         sInfo = knowledgeBase.subsystems.(sName);
 
         % Get first line of description as role summary
-        descLines = split(sInfo.description, newline);
-        roleSummary = strtrim(descLines(1));
-        if strlength(roleSummary) > 100
-            roleSummary = extractBefore(roleSummary, 100) + '...';
+        roleSummary = '';
+        if isfield(sInfo, 'description')
+            descLines = split(sInfo.description, newline);
+            if ~isempty(descLines)
+                roleSummary = strtrim(descLines(1));
+                if strlength(roleSummary) > 100
+                    roleSummary = extractBefore(roleSummary, 100) + '...';
+                end
+            end
         end
 
         blockSummary = "";
@@ -257,14 +275,18 @@ function overviewText = composeAIOverview(knowledgeBase)
     % Interface summary
     if isfield(knowledgeBase, 'interfaceInfo') && ~isempty(fieldnames(knowledgeBase.interfaceInfo))
         if isfield(knowledgeBase.interfaceInfo, 'Interface') && ...
-           ~isempty(knowledgeBase.interfaceInfo.Interface)
+           ~isempty(knowledgeBase.interfaceInfo.Interface) && ...
+           isfield(knowledgeBase.interfaceInfo.Interface, 'Items') && ...
+           istable(knowledgeBase.interfaceInfo.Interface.Items)
             items = knowledgeBase.interfaceInfo.Interface.Items;
-            if ~isempty(items) && ismember('Direction', string(items.Properties.VariableNames))
+            if height(items) > 0 && ismember('Direction', string(items.Properties.VariableNames))
                 inputCount = sum(startsWith(lower(strtrim(string(items.Direction))), 'input'));
                 outputCount = sum(startsWith(lower(strtrim(string(items.Direction))), 'output'));
                 calCount = 0;
                 if isfield(knowledgeBase.interfaceInfo, 'Calibration') && ...
-                   ~isempty(knowledgeBase.interfaceInfo.Calibration)
+                   ~isempty(knowledgeBase.interfaceInfo.Calibration) && ...
+                   isfield(knowledgeBase.interfaceInfo.Calibration, 'Items') && ...
+                   istable(knowledgeBase.interfaceInfo.Calibration.Items)
                     calCount = height(knowledgeBase.interfaceInfo.Calibration.Items);
                 end
                 overviewText(end+1) = sprintf('接口规模：%d 个输入信号，%d 个输出信号，%d 个标定参数。', ...
@@ -278,14 +300,17 @@ function overviewText = composeAIOverview(knowledgeBase)
     for i = 1:min(15, numel(subNames))  % Show first 15
         sName = subNames{i};
         sInfo = knowledgeBase.subsystems.(sName);
-        descLines = split(string(sInfo.description), newline);
-        if numel(descLines) >= 1
-            roleLine = strtrim(descLines(1));
-            if strlength(roleLine) > 80
-                roleLine = extractBefore(roleLine, 80) + '...';
+        roleLine = '';
+        if isfield(sInfo, 'description')
+            descLines = split(string(sInfo.description), newline);
+            if numel(descLines) >= 1
+                roleLine = strtrim(descLines(1));
+                if strlength(roleLine) > 80
+                    roleLine = extractBefore(roleLine, 80) + '...';
+                end
             end
-            overviewText(end+1) = sprintf('  • %s: %s', sName, roleLine); %#ok<AGROW>
         end
+        overviewText(end+1) = sprintf('  • %s: %s', sName, roleLine); %#ok<AGROW>
     end
     if numel(subNames) > 15
         overviewText(end+1) = sprintf('  ...及其他 %d 个子系统（详情见各子系统章节）', numel(subNames) - 15);
@@ -500,7 +525,8 @@ function para = makeParagraph(textValue)
 end
 
 function filtered = selectSignalRowsByDirection(dataTable, directionValue)
-    if isempty(dataTable) || ~ismember('Direction', string(dataTable.Properties.VariableNames))
+    if ~istable(dataTable) || isempty(dataTable) || ...
+       ~ismember('Direction', string(dataTable.Properties.VariableNames))
         filtered = dataTable;
         return;
     end
