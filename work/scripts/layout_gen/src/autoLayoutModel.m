@@ -14,7 +14,8 @@ function result = autoLayoutModel(modelName, varargin)
 %       autoLayoutModel('Model.slx', 'Scope', 'Model/Subsystem');
 
     fprintf('=== Auto Layout Model ===\n\n');
-    result = struct('status', 'ok', 'scopesProcessed', 0, 'errors', {});
+    result = struct('status', 'ok', 'scopesProcessed', 0, 'reportFile', '');
+    result.errors = {};
 
     %% Parse inputs
     p = inputParser;
@@ -30,13 +31,21 @@ function result = autoLayoutModel(modelName, varargin)
     alignPorts = p.Results.AlignPorts;
 
     %% Load model
-    [~, modelBase, ~] = fileparts(modelName);
+    [modelDir, modelBase, modelExt] = fileparts(modelName);
+    if isempty(modelDir)
+        modelDir = pwd;
+    end
+    if isempty(modelExt)
+        modelFile = fullfile(modelDir, [modelBase '.slx']);
+    else
+        modelFile = fullfile(modelDir, [modelBase modelExt]);
+    end
     if isempty(modelBase)
-        modelBase = modelName;
+        [~, modelBase] = fileparts(modelFile);
     end
 
     try
-        load_system(modelBase);
+        load_system(modelFile);
     catch
         load_system(modelName);
     end
@@ -86,13 +95,15 @@ function result = autoLayoutModel(modelName, varargin)
     %% Generate HTML report
     result.reportFile = generateLayoutReport(result, modelBase, scope, style);
     fprintf('Report: %s\n', result.reportFile);
+
+    save_system(modelBase, modelFile);
+    close_system(modelBase, 0);
 end
 
 function reportFile = generateLayoutReport(result, modelName, scope, style)
     reportFile = fullfile(pwd, [modelName '_layout_report.html']);
     fid = fopen(reportFile, 'w');
-    fprintf(fid, '<!DOCTYPE html><html><head>
-<meta charset="UTF-8">\n');
+    fprintf(fid, '<!DOCTYPE html><html><head>\n<meta charset="UTF-8">\n');
     fprintf(fid, '<title>Layout Report - %s</title>\n', modelName);
     fprintf(fid, '<style>body{font-family:-apple-system,sans-serif;margin:40px}\n');
     fprintf(fid, 'h1{color:#333;border-bottom:2px solid #2196F3;padding-bottom:10px}\n');
