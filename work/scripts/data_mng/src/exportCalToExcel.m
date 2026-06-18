@@ -37,8 +37,8 @@ function result = exportCalToExcel(modelName, varargin)
         mFile = fullfile(modelDir, [modelBase '_LoadCalParameter.m']);
     end
 
-    %% Load and scan ALL levels — check Value property for cal_ prefix
-    fprintf('[1/4] Scanning all levels for cal_ Value references...\n');
+    %% Load and scan ALL levels — check Value property for Cal_/cal_ prefix
+    fprintf('[1/4] Scanning all levels for Cal_/cal_ Value references...\n');
     load_system(modelName);
 
     allBlocks = find_system(modelBase, 'LookUnderMasks', 'all', 'FollowLinks', 'on', 'Type', 'Block');
@@ -63,8 +63,8 @@ function result = exportCalToExcel(modelName, varargin)
                     valExpr = strtrim(get_param(blk, 'Gain'));
             end
 
-            % Check if the value reference starts with cal_
-            if ~startsWith(valExpr, 'cal_')
+            % Check if the value reference starts with Cal_ (case-insensitive)
+            if ~startsWith(lower(valExpr), 'cal_')
                 continue;
             end
 

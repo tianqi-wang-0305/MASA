@@ -39,7 +39,7 @@ function result = exportAllToExcel(modelName, varargin)
         if strcmp(blk, modelBase), continue; end
         try
             name = get_param(blk, 'Name');
-            if ~startsWith(name, 'cal_'), continue; end
+            if ~startsWith(lower(name), 'cal_'), continue; end
             afterCal = name(5:end);
             if isempty(afterCal), continue; end
             hasValidType = false;
