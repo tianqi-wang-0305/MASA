@@ -20,6 +20,7 @@ Type `/` in chat to see these commands:
 | `/generateTraceMatrix` | Generate Requirement Traceability Matrix |
 | `/setPortTypes` | Auto-set port data types from signal name prefixes |
 | `/reviewModel` | Comprehensive model review (7 checks, AI-driven) |
+| `/reviewLogic` | Review logic consistency: requirements vs model behavior |
 | `/reviewConsistency` | Compare requirements (Excel) vs model implementation |
 | `/exportCal` | Export calibration parameters (cal_ prefix) to Excel |
 | `/exportSignals` | Export I/O signals to Excel with naming check |
