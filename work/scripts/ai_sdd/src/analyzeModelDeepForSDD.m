@@ -181,14 +181,15 @@ function knowledge = analyzeSingleSubsystem(modelName, sysPath)
     catch ME
         knowledge.description = sprintf('【%s】信号处理模块（描述生成异常：%s）', knowledge.name, ME.message);
     end
-    catch ME
-        st = ME.stack;
-        stackStr = '';
-        for si = 1:min(5, numel(st))
-            stackStr = [stackStr sprintf('  %s:%d\n', st(si).file, st(si).line)]; %#ok<AGROW>
+
+    % --- Add fallback summary for subsystems that lack description ---
+    if ~isfield(knowledge, 'description') || strlength(char(knowledge.description)) < 10
+        try
+            bt = summarizeDominantBlocks(sysPath);
+            knowledge.description = sprintf('【%s】包含%s，完成局部信号处理。', knowledge.name, bt);
+        catch
+            knowledge.description = sprintf('【%s】信号处理模块', knowledge.name);
         end
-        knowledge.description = sprintf('【%s】分析失败：%s', sysPath, ME.message);
-        knowledge.analysisError = sprintf('%s\nStack:\n%s', ME.message, stackStr);
     end
 end
 
