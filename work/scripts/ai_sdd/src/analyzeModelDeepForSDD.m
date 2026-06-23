@@ -113,21 +113,16 @@ end
 function knowledge = analyzeSingleSubsystem(modelName, sysPath)
 % Analyze one subsystem using model_read and model_query_params
     knowledge = struct();
-    try
     knowledge.path = sysPath;
     knowledge.name = string(get_param(sysPath, 'Name'));
 
-    % Resolve scope ID for model_read
-    scopeId = resolveBlockScopeId(sysPath);
-
     % --- model_read: get signal flow and algorithm ---
-    readResult = "";
     try
-        % Use full model path for MCP tools
+        scopeId = resolveBlockScopeId(sysPath);
         readResult = string(model_read(char(modelName), "root", scopeId));
         knowledge.modelReadSuccess = true;
     catch ME
-        readResult = "MCP model_read unavailable, using block-level analysis: " + ME.message;
+        readResult = "MCP unavailable: " + ME.message;
         knowledge.modelReadSuccess = false;
     end
     knowledge.modelReadOutput = char(readResult);
