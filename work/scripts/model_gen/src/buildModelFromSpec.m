@@ -271,39 +271,115 @@ function addThresholdLogic(modelName, subName, params)
 end
 
 function addPIDLogic(modelName, subName, params)
-% Add PID controller inside a subsystem
+% Add PID controller using ONLY basic blocks (no library blocks)
+%   P: Error → Gain(Kp) → Sum
+%   I: Error → Gain(Ki) → DiscreteIntegrator → Sum
+%   D: Error → Gain(Kd) → (basic diff approx) → Sum
     scope = [modelName '/' subName];
-    add_block('simulink/Sources/In1', [scope '/Reference'], 'Position', [50, 40, 80, 60]);
-    add_block('simulink/Sources/In1', [scope '/Feedback'], 'Position', [50, 120, 80, 140]);
+
+    % Inports
+    add_block('simulink/Sources/In1', [scope '/Reference'], 'Position', [50, 30, 80, 50]);
+    add_block('simulink/Sources/In1', [scope '/Feedback'], 'Position', [50, 110, 80, 130]);
+
+    % Error = Reference - Feedback
     add_block('simulink/Math Operations/Sum', [scope '/Error'], ...
-        'Position', [160, 60, 190, 100], 'Inputs', '+-');
-    add_block('simulink/Continuous/PID Controller', [scope '/PID'], ...
-        'Position', [280, 60, 380, 100]);
-    add_block('simulink/Sinks/Out1', [scope '/Output'], 'Position', [460, 70, 490, 90]);
+        'Position', [150, 50, 180, 90], 'Inputs', '+-', 'OutDataTypeStr', 'single');
+
+    % --- P path ---
+    pGain = getField(params, 'P', '1.0');
+    add_block('simulink/Math Operations/Gain', [scope '/P_Gain'], ...
+        'Position', [250, 20, 300, 50], 'Gain', pGain, 'OutDataTypeStr', 'single');
+
+    % --- I path ---
+    iGain = getField(params, 'I', '0');
+    add_block('simulink/Math Operations/Gain', [scope '/I_Gain'], ...
+        'Position', [250, 80, 300, 110], 'Gain', iGain, 'OutDataTypeStr', 'single');
+    add_block('simulink/Discrete/DiscreteIntegrator', [scope '/I_Integrator'], ...
+        'Position', [350, 80, 420, 110], 'OutDataTypeStr', 'single');
+
+    % --- D path (optional) ---
+    dGain = getField(params, 'D', '0');
+    hasD = abs(str2double(dGain)) > 0;
+    if hasD
+        add_block('simulink/Math Operations/Gain', [scope '/D_Gain'], ...
+            'Position', [250, 140, 300, 170], 'Gain', dGain, 'OutDataTypeStr', 'single');
+        add_block('simulink/Discrete/DiscreteDerivative', [scope '/D_Derivative'], ...
+            'Position', [350, 140, 420, 170], 'OutDataTypeStr', 'single');
+    end
+
+    % Output Sum
+    if hasD
+        add_block('simulink/Math Operations/Sum', [scope '/PID_Sum'], ...
+            'Position', [500, 60, 530, 150], 'Inputs', '+++', 'OutDataTypeStr', 'single');
+    else
+        add_block('simulink/Math Operations/Sum', [scope '/PID_Sum'], ...
+            'Position', [500, 50, 530, 110], 'Inputs', '++', 'OutDataTypeStr', 'single');
+    end
+
+    % Saturation (basic clamp)
+    add_block('simulink/Saturation', [scope '/Clamp'], ...
+        'Position', [580, 65, 620, 105], 'OutDataTypeStr', 'single');
+
+    % Outport
+    add_block('simulink/Sinks/Out1', [scope '/Output'], 'Position', [700, 75, 730, 95]);
+
+    % Wire: Error → Gains
     add_line(scope, 'Reference/1', 'Error/1');
     add_line(scope, 'Feedback/1', 'Error/2');
-    add_line(scope, 'Error/1', 'PID/1');
-    add_line(scope, 'PID/1', 'Output/1');
-    % Set PID parameters if provided
-    try
-        if isfield(params, 'P'), set_param([scope '/PID'], 'P', num2str(params.P)); end
-        if isfield(params, 'I'), set_param([scope '/PID'], 'I', num2str(params.I)); end
-        if isfield(params, 'D'), set_param([scope '/PID'], 'D', num2str(params.D)); end
-    catch, end
+    add_line(scope, 'Error/1', 'P_Gain/1');
+    add_line(scope, 'Error/1', 'I_Gain/1');
+    if hasD, add_line(scope, 'Error/1', 'D_Gain/1'); end
+
+    % Wire: P path
+    add_line(scope, 'P_Gain/1', 'PID_Sum/1');
+
+    % Wire: I path
+    add_line(scope, 'I_Gain/1', 'I_Integrator/1');
+    add_line(scope, 'I_Integrator/1', 'PID_Sum/2');
+
+    % Wire: D path
+    if hasD
+        add_line(scope, 'D_Gain/1', 'D_Derivative/1');
+        add_line(scope, 'D_Derivative/1', 'PID_Sum/3');
+    end
+
+    % Wire: Sum → Clamp → Output
+    add_line(scope, 'PID_Sum/1', 'Clamp/1');
+    add_line(scope, 'Clamp/1', 'Output/1');
 end
 
 function addFilterLogic(modelName, subName, params)
-% Add discrete filter inside a subsystem
+% Add a basic discrete filter using Gain, Sum, UnitDelay (no library filter)
+%   y[n] = b0*x[n] + b1*x[n-1] - a1*y[n-1]
     scope = [modelName '/' subName];
+    b0 = getField(params, 'b0', '0.1');
+    b1 = getField(params, 'b1', '0.1');
+    a1 = getField(params, 'a1', '-0.8');
+
     add_block('simulink/Sources/In1', [scope '/Input'], 'Position', [50, 60, 80, 80]);
-    numerator = getField(params, 'numerator', '[0.1, 0.1]');
-    denominator = getField(params, 'denominator', '[1, -0.8]');
-    add_block('simulink/Discrete/DiscreteFilter', [scope '/Filter'], ...
-        'Position', [200, 55, 300, 95], ...
-        'Numerator', numerator, 'Denominator', denominator);
-    add_block('simulink/Sinks/Out1', [scope '/Output'], 'Position', [400, 65, 430, 85]);
-    add_line(scope, 'Input/1', 'Filter/1');
-    add_line(scope, 'Filter/1', 'Output/1');
+    add_block('simulink/Math Operations/Gain', [scope '/Gain_b0'], ...
+        'Position', [150, 20, 200, 50], 'Gain', b0, 'OutDataTypeStr', 'single');
+    add_block('simulink/Math Operations/Gain', [scope '/Gain_b1'], ...
+        'Position', [150, 100, 200, 130], 'Gain', b1, 'OutDataTypeStr', 'single');
+    add_block('simulink/Math Operations/Gain', [scope '/Gain_a1'], ...
+        'Position', [150, 180, 200, 210], 'Gain', a1, 'OutDataTypeStr', 'single');
+    add_block('simulink/Discrete/UnitDelay', [scope '/Delay_x'], ...
+        'Position', [280, 100, 330, 130], 'OutDataTypeStr', 'single');
+    add_block('simulink/Discrete/UnitDelay', [scope '/Delay_y'], ...
+        'Position', [280, 180, 330, 210], 'OutDataTypeStr', 'single');
+    add_block('simulink/Math Operations/Sum', [scope '/Sum'], ...
+        'Position', [420, 50, 450, 200], 'Inputs', '++-', 'OutDataTypeStr', 'single');
+    add_block('simulink/Sinks/Out1', [scope '/Output'], 'Position', [550, 115, 580, 135]);
+
+    add_line(scope, 'Input/1', 'Gain_b0/1');
+    add_line(scope, 'Input/1', 'Gain_b1/1');
+    add_line(scope, 'Gain_b0/1', 'Sum/1');
+    add_line(scope, 'Gain_b1/1', 'Delay_x/1');
+    add_line(scope, 'Delay_x/1', 'Sum/2');
+    add_line(scope, 'Delay_y/1', 'Gain_a1/1');
+    add_line(scope, 'Gain_a1/1', 'Sum/3');
+    add_line(scope, 'Sum/1', 'Delay_y/1');
+    add_line(scope, 'Sum/1', 'Output/1');
 end
 
 %% ================== Utility ==================

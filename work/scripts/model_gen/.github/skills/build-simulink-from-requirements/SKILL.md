@@ -114,6 +114,34 @@ Extract structured information from the user's natural language description.
 
 ## Mandatory Naming & Data Type Rules
 
+### 🧱 模块使用规则：只使用基本模块
+
+**禁止使用 Simulink 库中的复合模块**（如 PID Controller、Discrete Filter 等库函数）。  
+所有算法必须用最基本的 Simulink 模块搭建：
+
+| ❌ 禁止使用（库模块） | ✅ 改为基本模块组合 |
+|---------------------|------------------|
+| `PID Controller` | `Gain` + `Sum` + `DiscreteIntegrator` / `Integrator` |
+| `Discrete Filter` / `Transfer Fcn` | `Gain` + `Sum` + `UnitDelay` 组合 |
+| `PID Controller (2DOF)` | `Gain` × 3 + `Sum` × 2 + `Integrator` |
+| `State-Space` | `Gain` + `Sum` + `Integrator` + `UnitDelay` |
+| `Lead-Lag Filter` | `Gain` + `Sum` + `UnitDelay` |
+
+**允许使用的基本模块列表：**
+
+| 类别 | 允许的模块 |
+|------|-----------|
+| 数学运算 | `Gain`, `Sum`, `Product`, `Bias`, `Abs` |
+| 逻辑运算 | `LogicalOperator`, `RelationalOperator`, `Switch` |
+| 连续/离散 | `Integrator`, `DiscreteIntegrator`, `UnitDelay`, `Memory` |
+| 信号路由 | `BusCreator`, `BusSelector`, `Mux`, `Demux`, `From`, `Goto` |
+| 信号属性 | `DataTypeConversion`, `Saturation`, `RateTransition` |
+| 信号源 | `Inport`, `Outport`, `Constant`, `Ground`, `Terminator` |
+| 查找表 | `LookupTable`, `1-D Lookup Table`, `2-D Lookup Table` |
+
+> **原则**：用 Gain + Sum + Integrator 搭建任何控制器，而非使用封装好的库模块。  
+> 这样生成的模型结构透明、可读性强，且不依赖特定工具箱版本。
+
 ### 端口命名规则（必须遵守）
 
 所有 Inport/Outport 的名称必须使用 `{type}{Name}` 格式：

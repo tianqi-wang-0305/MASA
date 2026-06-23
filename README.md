@@ -38,7 +38,7 @@ satk_initialize
 
 | Command | 功能 | 入口 |
 |---------|------|------|
-| `/buildModel` | 从自然语言需求搭建 Simulink 模型骨架 | AI Agent + model_edit |
+| `/buildModel` | 从自然语言需求搭建 Simulink 模型骨架（仅用 Gain/Sum/Integrator 等基本模块） | AI Agent + model_edit |
 | `/autoLayout` | 自动布局：对齐端口、层级排列子系统 | `autoLayoutModel.m` |
 | `/setPortTypes` | 按信号名前缀自动设置端口数据类型 | `autoSetPortDataTypes.m` |
 
@@ -177,7 +177,12 @@ autoModeling/
 
 ---
 
-## 命名规范
+## 模型搭建与命名规范
+
+### 模块使用规则
+
+- ❌ **禁止**使用 Simulink 库中的复合模块（PID Controller、Discrete Filter 等）
+- ✅ **必须**用基本模块搭建：`Gain` + `Sum` + `Integrator` + `UnitDelay` 等
 
 ### 信号命名
 
@@ -187,10 +192,11 @@ autoModeling/
 
 | 前缀 | 类型 | 示例 |
 |------|------|------|
-| `s8`/`s16`/`s32` | int8/16/32 | `s16VehicleSpeed` |
-| `u8`/`u16`/`u32` | uint8/16/32 | `u8DoorStatus` |
-| `f32`/`f64` | single/double | `f32Temperature` |
+| `u8`/`u16`/`u32` | uint8/16/32 | `u16VehicleSpeed` |
+| `s16`/`s32` | int16/32 | `s16Position` |
+| `f32` | single（浮点唯一选择） | `f32Temperature` |
 | `b`/`bool` | boolean | `bLockRequest` |
+| ~~`f64`~~ | ~~double~~ | ❌ **禁止使用** |
 
 ### 标定命名
 
@@ -200,12 +206,12 @@ cal_{type}{Name}    例如: cal_u16Threshold
 
 | 前缀 | 类型 | 示例 |
 |------|------|------|
-| `cal_u8`/`cal_u16`/`cal_u32` | uint 标定 | `cal_u16Threshold` |
-| `cal_s16`/`cal_s32` | int 标定 | `cal_s16SpeedLimit` |
-| `cal_f32`/`cal_f64` | float 标定 | `cal_f32GainValue` |
+| `cal_u16` | uint16 标定 | `cal_u16Threshold` |
+| `cal_s16` | int16 标定 | `cal_s16SpeedLimit` |
+| `cal_f32` | single 标定 | `cal_f32GainValue` |
 | `cal_b` | boolean 标定 | `cal_bEnableFlag` |
 
-> 使用 `/setPortTypes` 自动按此规则批量更新端口数据类型。
+> 使用 `/setPortTypes` 自动按规则更新端口数据类型。
 > 使用 `/exportCal` 自动扫描模型中所有引用 `cal_` 的标定并导出。
 
 ---
