@@ -178,7 +178,7 @@ function writeCalMFile(calBlocks, mFile, modelName)
 
         fprintf(fid, '%%%% %s\n', calName);
         fprintf(fid, '%% %s\n', desc);
-        fprintf(fid, '%s = Simulink.Parameter;\n', calName);
+        fprintf(fid, '%s = NoneSAR.Parameter;\n', calName);
         fprintf(fid, '%s.Value = 0;  %% TODO: set actual value\n', calName);
         fprintf(fid, '%s.DataType = ''%s'';\n', calName, dt);
         fprintf(fid, '%s.CoderInfo.StorageClass = ''Custom'';\n', calName);

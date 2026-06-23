@@ -158,7 +158,7 @@ function writeCalMFile(calBlocks, mFile, modelName)
         sc = getStorageClass(dt);
         fprintf(fid, '%%%% %s\n', name);
         if ~isnan(numVal)
-            fprintf(fid, '%s = Simulink.Parameter;\n', name);
+            fprintf(fid, '%s = NoneSAR.Parameter;\n', name);
             fprintf(fid, '%s.Value = %s;\n', name, val);
             fprintf(fid, '%s.DataType = ''%s'';\n', name, dt);
             fprintf(fid, '%s.CoderInfo.StorageClass = ''Custom'';\n', name);
