@@ -51,7 +51,7 @@ function modelName = buildModelFromSpec(spec, saveDir)
         inputs = struct('name', {}, 'dataType', {});
     end
     if ~isfield(inputs, 'dataType')
-        [inputs.dataType] = deal('double');
+        [inputs.dataType] = deal('single');
     end
 
     outputs = getField(spec, 'outputs', struct([]));
@@ -59,7 +59,7 @@ function modelName = buildModelFromSpec(spec, saveDir)
         outputs = struct('name', {}, 'dataType', {});
     end
     if ~isfield(outputs, 'dataType')
-        [outputs.dataType] = deal('double');
+        [outputs.dataType] = deal('single');
     end
 
     subsystems = getField(spec, 'subsystems', struct([]));
@@ -257,7 +257,7 @@ function addThresholdLogic(modelName, subName, params)
     % Add inports
     add_block('simulink/Sources/In1', [scope '/Input'], 'Position', [50, 60, 80, 80]);
     add_block('simulink/Sources/In1', [scope '/Threshold'], 'Position', [50, 140, 80, 160], ...
-        'OutDataTypeStr', 'double');
+        'OutDataTypeStr', 'single');
     % Add relational operator
     op = getField(params, 'operator', '>=');
     add_block('simulink/Logic and Bit Operations/RelationalOperator', [scope '/Compare'], ...

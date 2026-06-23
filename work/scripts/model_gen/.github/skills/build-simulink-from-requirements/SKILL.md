@@ -112,6 +112,80 @@ Extract structured information from the user's natural language description.
 | "lookup table", "map", "curve", "characteristic" | Use Lookup Table block with variable data (e.g., `TableData_Map`, `Breakpoints_Speed`) |
 | "timeout", "period", "duration", "interval" | Use DiscretePulseGenerator or MATLAB Function with named variable (e.g., `Timeout_Period`, `Sample_Interval`) |
 
+## Mandatory Naming & Data Type Rules
+
+### 端口命名规则（必须遵守）
+
+所有 Inport/Outport 的名称必须使用 `{type}{Name}` 格式：
+
+| 数据类型 | 前缀 | 端口名示例 | 适用场景 |
+|---------|------|-----------|---------|
+| boolean | `b` / `bool` | `bEnable`、`boolReady` | 开关、状态、标志位 |
+| uint8 | `u8` | `u8DoorStatus` | 小范围枚举、计数器 |
+| uint16 | `u16` | `u16VehicleSpeed` | 一般传感器值 |
+| uint32 | `u32` | `u32TimeStamp` | 时间戳、大范围计数 |
+| int16 | `s16` | `s16Position` | 有符号位置/误差信号 |
+| int32 | `s32` | `s32EncoderTicks` | 大范围有符号信号 |
+| single (f32) | `f32` | `f32Temperature` | 浮点信号（最常用） |
+| **~~double (f64)~~** | **禁止使用** | ❌ `f64Voltage` | **不允许使用 double** |
+
+> ⚠ **double 类型禁止使用**。所有浮点数必须使用 `single`（即 f32），`OutDataTypeStr` 设置为 `'single'`。
+
+### 标定命名规则（必须遵守）
+
+所有标定参数（Constant/Gain 块引用工作区变量）必须使用 `cal_{type}{Name}` 格式：
+
+| 数据类型 | 前缀 | 标定名示例 |
+|---------|------|-----------|
+| uint16 | `cal_u16` | `cal_u16Threshold` |
+| int16 | `cal_s16` | `cal_s16SpeedLimit` |
+| single | `cal_f32` | `cal_f32GainValue` |
+| boolean | `cal_b` | `cal_bEnableFlag` |
+
+### 数据使用规则
+
+| 规则 | 说明 |
+|------|------|
+| ✅ 允许 | `single` (f32), `int8/16/32`, `uint8/16/32`, `boolean` |
+| ❌ 禁止 | `double` (f64) — 即使是 Constant/Inport/Outport 也不允许 |
+| ✅ 默认 | 无符号信号用 `uint16`，浮点信号用 `single`，逻辑信号用 `boolean` |
+| ✅ 标定 | Constant 块的 Value 使用 `cal_{type}Name` 工作区变量引用 |
+
+### 端口命名示例
+
+```matlab
+% 正确 ✅
+Inport:  'u16VehicleSpeed'   → OutDataTypeStr = 'uint16'
+Inport:  'f32Temperature'    → OutDataTypeStr = 'single'
+Inport:  'bLockRequest'      → OutDataTypeStr = 'boolean'
+Outport: 's16Position'       → OutDataTypeStr = 'int16'
+Outport: 'u8ErrorCode'       → OutDataTypeStr = 'uint8'
+
+% 错误 ❌
+Inport:  'VehicleSpeed'      → 缺少类型前缀
+Outport: 'f64Voltage'        → double 禁止使用
+Inport:  'doubleValue'       → double 禁止使用
+Constant: 'Threshold'        → 标定缺少 cal_ 前缀
+```
+
+### 在 model_edit 中实现
+
+创建端口时直接设置类型：
+
+```json
+// 正确 ✅ 命名 + 类型
+{"op": "add_block", "type": "Inport", "name": "u16VehicleSpeed", "ref": "p1",
+ "params": {"OutDataTypeStr": "uint16"}},
+{"op": "add_block", "type": "Inport", "name": "f32Temperature", "ref": "p2",
+ "params": {"OutDataTypeStr": "single"}},
+{"op": "add_block", "type": "Inport", "name": "bLockRequest", "ref": "p3",
+ "params": {"OutDataTypeStr": "boolean"}}
+
+// 标定 Constant 块 — Value 使用 cal_ 变量引用
+{"op": "add_block", "type": "Constant", "name": "SpeedThreshold", "ref": "c1",
+ "params": {"Value": "cal_u16Threshold", "OutDataTypeStr": "uint16"}}
+```
+
 ## Step 2: Design Architecture
 
 ### Architecture Patterns

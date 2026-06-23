@@ -10,13 +10,13 @@ Transform natural language software requirements into a Simulink model skeleton.
 
 ## Usage
 
-Describe what you want the model to do:
+Describe what you want the model to do. **注意命名规范**：端口名必须加类型前缀（`u16`/`f32`/`b` 等），浮点用 `single` 不用 `double`。
 
 ```
 /buildModel A PID speed controller with:
-  - Input: target speed, actual speed
-  - Output: throttle command
-  - Logic: P=2.0, I=0.5, D=0.1, saturate output to [0, 100]
+  - Input: target speed (uint16), actual speed (single)
+  - Output: throttle command (single, 0-100)
+  - Logic: P=2.0, I=0.5, D=0.1, saturate output
 ```
 
 ```
