@@ -123,11 +123,14 @@ function knowledge = analyzeSingleSubsystem(modelName, sysPath)
     % --- model_read: get signal flow and algorithm ---
     readResult = "";
     try
+        % Use full model path for MCP tools
         readResult = string(model_read(char(modelName), "root", scopeId));
+        knowledge.modelReadSuccess = true;
     catch ME
-        readResult = "model_read failed: " + ME.message;
+        readResult = "MCP model_read unavailable, using block-level analysis: " + ME.message;
+        knowledge.modelReadSuccess = false;
     end
-    knowledge.modelReadOutput = readResult;
+    knowledge.modelReadOutput = char(readResult);
 
     % Parse key info from model_read output
     try
