@@ -294,7 +294,7 @@ function addPIDLogic(modelName, subName, params)
     iGain = getField(params, 'I', '0');
     add_block('simulink/Math Operations/Gain', [scope '/I_Gain'], ...
         'Position', [250, 80, 300, 110], 'Gain', iGain, 'OutDataTypeStr', 'single');
-    add_block('simulink/Discrete/DiscreteIntegrator', [scope '/I_Integrator'], ...
+    add_block('simulink/Discrete/Discrete-Time Integrator', [scope '/I_Integrator'], ...
         'Position', [350, 80, 420, 110], 'OutDataTypeStr', 'single');
 
     % --- D path (optional) ---
@@ -303,7 +303,7 @@ function addPIDLogic(modelName, subName, params)
     if hasD
         add_block('simulink/Math Operations/Gain', [scope '/D_Gain'], ...
             'Position', [250, 140, 300, 170], 'Gain', dGain, 'OutDataTypeStr', 'single');
-        add_block('simulink/Discrete/DiscreteDerivative', [scope '/D_Derivative'], ...
+        add_block('simulink/Discrete/Discrete Derivative', [scope '/D_Derivative'], ...
             'Position', [350, 140, 420, 170], 'OutDataTypeStr', 'single');
     end
 
@@ -317,7 +317,7 @@ function addPIDLogic(modelName, subName, params)
     end
 
     % Saturation (basic clamp)
-    add_block('simulink/Saturation', [scope '/Clamp'], ...
+    add_block('simulink/Discontinuities/Saturation', [scope '/Clamp'], ...
         'Position', [580, 65, 620, 105], 'OutDataTypeStr', 'single');
 
     % Outport
