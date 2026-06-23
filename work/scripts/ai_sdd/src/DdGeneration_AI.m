@@ -149,8 +149,8 @@ function pdfFile = DdGeneration_AI(modelPath, excelPath, varargin)
             descLines = split(sInfo.description, newline);
             if ~isempty(descLines)
                 roleSummary = strtrim(descLines(1));
-                if strlength(roleSummary) > 100
-                    roleSummary = extractBefore(roleSummary, 100) + '...';
+                if strlength(char(roleSummary)) > 100
+                    roleSummary = [extractBefore(char(roleSummary), 100) '...'];
                 end
             end
         end
@@ -166,8 +166,16 @@ function pdfFile = DdGeneration_AI(modelPath, excelPath, varargin)
 
         linkPara = mlreportgen.dom.Paragraph(mlreportgen.dom.InternalLink(targetId, sName));
         append(row, mlreportgen.dom.TableEntry(linkPara));
-        append(row, mlreportgen.dom.TableEntry(mlreportgen.dom.Paragraph(roleSummary)));
-        append(row, mlreportgen.dom.TableEntry(mlreportgen.dom.Paragraph(blockSummary)));
+        if isempty(roleSummary) || strlength(char(roleSummary)) == 0
+            append(row, mlreportgen.dom.TableEntry(mlreportgen.dom.Paragraph('-')));
+        else
+            append(row, mlreportgen.dom.TableEntry(mlreportgen.dom.Paragraph(char(roleSummary))));
+        end
+        if isempty(blockSummary) || strlength(char(blockSummary)) == 0
+            append(row, mlreportgen.dom.TableEntry(mlreportgen.dom.Paragraph('-')));
+        else
+            append(row, mlreportgen.dom.TableEntry(mlreportgen.dom.Paragraph(char(blockSummary))));
+        end
         append(navTable, row);
     end
 

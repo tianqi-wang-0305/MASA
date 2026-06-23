@@ -113,6 +113,7 @@ end
 function knowledge = analyzeSingleSubsystem(modelName, sysPath)
 % Analyze one subsystem using model_read and model_query_params
     knowledge = struct();
+    try
     knowledge.path = sysPath;
     knowledge.name = string(get_param(sysPath, 'Name'));
 
@@ -129,7 +130,11 @@ function knowledge = analyzeSingleSubsystem(modelName, sysPath)
     knowledge.modelReadOutput = readResult;
 
     % Parse key info from model_read output
-    knowledge.parsedInfo = parseModelReadOutput(readResult);
+    try
+        knowledge.parsedInfo = parseModelReadOutput(readResult);
+    catch ME
+        knowledge.parsedInfo = struct('variableRefs',{},'keyBlocks',{},'signalFlow',"",'hasStateflow',false,'hasMathOps',false,'hasLogicOps',false,'hasLookup',false);
+    end
 
     % --- model_query_params: get block parameters ---
     try
@@ -167,7 +172,15 @@ function knowledge = analyzeSingleSubsystem(modelName, sysPath)
     knowledge.outputPorts = getDirectPortNames(sysPath, 'Outport');
 
     % --- Generate rich description ---
-    knowledge.description = composeRichDescription(knowledge);
+    try
+        knowledge.description = composeRichDescription(knowledge);
+    catch ME
+        knowledge.description = sprintf('【%s】信号处理模块（描述生成异常：%s）', knowledge.name, ME.message);
+    end
+    catch ME
+        knowledge.description = sprintf('【%s】分析失败：%s', sysPath, ME.message);
+        knowledge.analysisError = ME.message;
+    end
 end
 
 function info = parseModelReadOutput(readText)
