@@ -147,14 +147,20 @@ function knowledge = analyzeSingleSubsystem(modelName, sysPath)
 
     % --- resolve key params ---
     knowledge.variables = struct();
-    if isfield(knowledge.parsedInfo, 'variableRefs') && ~isempty(knowledge.parsedInfo.variableRefs)
-        try
-            varResult = model_resolve_params(char(modelName), ...
-                jsonencode(knowledge.parsedInfo.variableRefs));
-            knowledge.resolvedVariables = string(varResult);
-        catch ME
-            knowledge.resolvedVariables = "resolve_params failed: " + ME.message;
+    try
+        if isfield(knowledge.parsedInfo, 'variableRefs') && ~isempty(knowledge.parsedInfo.variableRefs)
+            try
+                encoded = jsonencode(knowledge.parsedInfo.variableRefs);
+                if ~isempty(encoded)
+                    varResult = model_resolve_params(char(modelName), encoded);
+                    knowledge.resolvedVariables = string(varResult);
+                end
+            catch ME
+                knowledge.resolvedVariables = "resolve: " + ME.message;
+            end
         end
+    catch ME
+        knowledge.resolvedVariables = "resolve failed: " + ME.message;
     end
 
     % --- Get direct children subsystems ---
@@ -178,8 +184,13 @@ function knowledge = analyzeSingleSubsystem(modelName, sysPath)
         knowledge.description = sprintf('【%s】信号处理模块（描述生成异常：%s）', knowledge.name, ME.message);
     end
     catch ME
+        st = ME.stack;
+        stackStr = '';
+        for si = 1:min(5, numel(st))
+            stackStr = [stackStr sprintf('  %s:%d\n', st(si).file, st(si).line)]; %#ok<AGROW>
+        end
         knowledge.description = sprintf('【%s】分析失败：%s', sysPath, ME.message);
-        knowledge.analysisError = ME.message;
+        knowledge.analysisError = sprintf('%s\nStack:\n%s', ME.message, stackStr);
     end
 end
 

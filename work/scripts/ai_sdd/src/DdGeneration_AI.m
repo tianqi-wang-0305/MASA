@@ -227,11 +227,13 @@ function pdfFile = DdGeneration_AI(modelPath, excelPath, varargin)
         end
 
         % ---- Child subsystem list ----
-        if isfield(sInfo, 'childSubsystems') && ~isempty(sInfo.childSubsystems)
-            append(sec, mlreportgen.dom.Paragraph(' '));
-            childStr = strjoin(sInfo.childSubsystems, ', ');
-            append(sec, mlreportgen.dom.Paragraph('Child components: ' + childStr));
-        end
+        if isfield(sInfo, 'childSubsystems')
+            cs = sInfo.childSubsystems;
+            if iscell(cs) && ~isempty(strjoin(string(cs)))
+                childStr = strjoin(string(cs), ', ');
+                append(sec, mlreportgen.dom.Paragraph(' '));
+                append(sec, mlreportgen.dom.Paragraph('Child components: ' + childStr));
+            end
 
         % ---- Screenshot ----
         if strlength(sysPath) > 0 && bdIsLoaded(modelName)
