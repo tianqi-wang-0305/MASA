@@ -152,7 +152,7 @@ end
 function writeSignalsToExcel(ports, outputFile)
 % Write signal data to Excel
     headers = {'PortName', 'Direction', 'DataType', 'Dimensions', 'SampleTime', ...
-               'ConnectedSignal', 'NamingStatus', 'FullPath'};
+               'ConnectedSignal', 'NamingStatus'};
     n = numel(ports);
     data = cell(n, numel(headers));
     for i = 1:n
@@ -164,7 +164,6 @@ function writeSignalsToExcel(ports, outputFile)
         data{i,5} = p.sampleTime;
         data{i,6} = p.signalName;
         data{i,7} = p.prefixStatus;
-        data{i,8} = p.path;
     end
     outTable = cell2table(data, 'VariableNames', headers);
     writetable(outTable, outputFile, 'Sheet', 'Signals');

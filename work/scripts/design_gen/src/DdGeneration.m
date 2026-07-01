@@ -5,14 +5,12 @@ end
 
 addpath(rootDir);
 rptModel = promptForModelFile();
-modelFile = rptModel.FilePath;
 modelName = rptModel.ModelName;
 modelDir = rptModel.ModelDir;
 excelInfo = promptForExcelFile(modelDir);
 
 loadReportDependencies(modelDir);
 load_system(modelName);
-loadedModel = modelName;
 interfaceData = readInterfaceWorkbook(excelInfo.FilePath);
 
 rptFileBase = fullfile(modelDir, modelName + "_DetailDesign");
@@ -35,7 +33,7 @@ rpt.CompileModelBeforeReporting = false;
 
 % 封面
 tp = mlreportgen.report.TitlePage;
-tp.Title = modelName + " Simulink Report";
+tp.Title = modelName + " Detail Design";
 tp.Subtitle = "Auto-generated model documentation";
 append(rpt, tp);
 
@@ -51,8 +49,8 @@ if ~isempty(interfaceData)
     append(rpt, mlreportgen.dom.PageBreak);
 end
 
-% 子系统导航页：点击名称跳转到对应章节
-systems = collectReportSystems(loadedModel);
+% 第四章节：子系统导航
+systems = collectReportSystems(modelName);
 
 navSec = mlreportgen.report.Section;
 navSec.Title = "Subsystem Navigation";
@@ -73,8 +71,8 @@ append(navTable, headerRow);
 
 for k = 1:numel(systems)
     sys = systems(k);
-    targetId = sectionTargetId(sys, loadedModel, k);
-    if sys == string(loadedModel)
+    targetId = sectionTargetId(sys, modelName, k);
+    if sys == string(modelName)
         linkText = "Model Overview";
         descriptionText = getModelDescription(sys);
     else
@@ -96,9 +94,9 @@ append(rpt, mlreportgen.dom.PageBreak);
 % 页面 1：根模型概览
 sec = mlreportgen.report.Section;
 sec.Title = "Model Overview";
-sec.LinkTarget = sectionTargetId(loadedModel, loadedModel, 1);
-appendSectionDescription(sec, getModelDescription(loadedModel));
-appendDiagram(sec, get_param(loadedModel, "Handle"));
+sec.LinkTarget = sectionTargetId(modelName, modelName, 1);
+appendSectionDescription(sec, getModelDescription(modelName));
+appendDiagram(sec, get_param(modelName, "Handle"));
 append(rpt, sec);
 append(rpt, mlreportgen.dom.PageBreak);
 
@@ -106,13 +104,13 @@ for k = 1:numel(systems)
     sys = systems(k);
 
     % 跳过根模型，根模型已单独出过一页
-    if sys == string(loadedModel)
+    if sys == string(modelName)
         continue;
     end
 
     sec = mlreportgen.report.Section;
     sec.Title = get_param(sys, "Name");
-    sec.LinkTarget = sectionTargetId(sys, loadedModel, k);
+    sec.LinkTarget = sectionTargetId(sys, modelName, k);
 
     appendSectionDescription(sec, getModelDescription(sys));
     appendDiagram(sec, get_param(sys, "Handle"));
@@ -349,7 +347,7 @@ end
 end
 
 function filtered = selectSignalColumns(dataTable)
-preferred = ["SignalName", "Direction", "Description", "DataType", "InitialValue", "InitialValu", "Factor", "Offset", "Min", "Max", "Unit", "Dimensions"];
+preferred = ["SignalName", "Direction", "Description", "DataType"];
 filtered = selectExistingColumns(dataTable, preferred);
 if ~any(strcmpi(filtered.Properties.VariableNames, "Description"))
     filtered.Description = repmat(string(""), height(filtered), 1);
@@ -362,7 +360,7 @@ end
 end
 
 function filtered = selectCalibrationColumns(dataTable)
-preferred = ["Name", "SWC", "Description", "Type", "DataType", "Value", "Min", "Max", "Unit", "Factor", "Offset", "Dimensions"];
+preferred = ["Name", "SWC", "Description", "Type", "DataType", "Value"];
 filtered = selectExistingColumns(dataTable, preferred);
 end
 
@@ -479,7 +477,6 @@ systems = allSystems(keep);
 end
 
 function descriptionText = getModelDescription(sys)
-descriptionText = "";
 try
     descriptionText = string(get_param(sys, "Description"));
 catch

@@ -33,7 +33,7 @@ function testResults = generateModelTests(modelPath, varargin)
     addRequired(p, 'modelPath', @(x) ischar(x) || isstring(x));
     addParameter(p, 'Component', '', @ischar);
     addParameter(p, 'OutputDir', '', @ischar);
-    addParameter(p, 'Strategy', 'basic', @(x) any(validatestring(x, {'basic', 'boundary', 'comprehensive'})));
+    addParameter(p, 'Strategy', 'comprehensive', @(x) any(validatestring(x, {'basic', 'boundary', 'comprehensive'})));
     addParameter(p, 'RunTests', true, @islogical);
     parse(p, modelPath, varargin{:});
 
@@ -108,7 +108,10 @@ function testResults = generateModelTests(modelPath, varargin)
     testResults.modelName = modelName;
     testResults.componentPath = componentPath;
     testResults.featureFiles = featureFiles;
+    testResults.testSuites = testSuites;
     testResults.strategy = strategy;
+    testResults.inports = inports;
+    testResults.outports = outports;
     testResults.suiteResults = {};
 
     if shouldRun
@@ -119,36 +122,19 @@ function testResults = generateModelTests(modelPath, varargin)
             [~, featName] = fileparts(featureFile);
 
             fprintf('  Running: %s\n', featName);
-
-            % Draft mode first for quick validation
             try
-                draftResult = model_test(char(modelName), ...
-                    'TestFile', char(featureFile), ...
-                    'DraftMode', 'true', ...
-                    'Coverage', 'none');
-                fprintf('    Draft: PASS\n');
-            catch ME
-                fprintf('    Draft: FAILED - %s\n', ME.message);
-                fprintf('    Trying full mode instead...\n');
-            end
-
-            % Full compilation run
-            try
-                fullResult = model_test(char(modelName), ...
-                    'TestFile', char(featureFile), ...
-                    'DraftMode', 'false', ...
-                    'Coverage', 'decision');
+                fullResult = model_test('TestFile', char(featureFile));
                 testResults.suiteResults{end+1} = struct(...
                     'featureFile', featureFile, ...
                     'status', 'passed', ...
                     'result', string(fullResult)); %#ok<AGROW>
-                fprintf('    Full:  PASS\n');
+                fprintf('    Run:  PASS\n');
             catch ME
                 testResults.suiteResults{end+1} = struct(...
                     'featureFile', featureFile, ...
                     'status', 'failed', ...
                     'error', ME.message); %#ok<AGROW>
-                fprintf('    Full:  FAILED - %s\n', ME.message);
+                fprintf('    Run:  FAILED - %s\n', ME.message);
             end
         end
     end
@@ -161,7 +147,7 @@ function testResults = generateModelTests(modelPath, varargin)
     fprintf('\n=== Test Generation Complete ===\n');
     fprintf('Feature files: %d\n', numel(featureFiles));
     if shouldRun
-        passed = sum(arrayfun(@(x) strcmp(x.status, 'passed'), testResults.suiteResults));
+        passed = sum(cellfun(@(x) isfield(x, 'status') && strcmp(x.status, 'passed'), testResults.suiteResults));
         fprintf('Tests passed: %d / %d\n', passed, numel(testResults.suiteResults));
     end
     fprintf('Report: %s\n', testResults.reportFile);
@@ -183,7 +169,7 @@ function [inports, outports, dataTypes, sampleTime] = analyzeComponentInterface(
         end
         name = string(get_param(blk, 'Name'));
         dt = string(get_param(blk, 'OutDataTypeStr'));
-        dims = string(get_param(blk, 'Dimensions'));
+        dims = getBlockDimensions(blk);
         st = string(get_param(blk, 'SampleTime'));
         inports(end+1) = struct('name', name, 'dataType', dt, 'dims', dims, 'sampleTime', st); %#ok<AGROW>
     end
@@ -197,15 +183,37 @@ function [inports, outports, dataTypes, sampleTime] = analyzeComponentInterface(
         end
         name = string(get_param(blk, 'Name'));
         dt = string(get_param(blk, 'OutDataTypeStr'));
-        dims = string(get_param(blk, 'Dimensions'));
+        dims = getBlockDimensions(blk);
         st = string(get_param(blk, 'SampleTime'));
         outports(end+1) = struct('name', name, 'dataType', dt, 'dims', dims, 'sampleTime', st); %#ok<AGROW>
     end
 
-    dataTypes = unique([{inports.dataType}, {outports.dataType}]);
+    dataTypes = unique(string([{inports.dataType}, {outports.dataType}]));
     sampleTime = get_param(componentPath, 'FixedStep');
     if isempty(sampleTime)
         sampleTime = '0.01'; % default
+    end
+end
+
+function dims = getBlockDimensions(blk)
+    dims = "";
+    candidateParams = {'Dimensions', 'PortDimensions', 'CompiledPortDimensions'};
+    for i = 1:numel(candidateParams)
+        paramName = candidateParams{i};
+        try
+            value = get_param(blk, paramName);
+            if ~isempty(value)
+                if isstring(value) || ischar(value)
+                    dims = string(value);
+                elseif isnumeric(value)
+                    dims = string(mat2str(value));
+                else
+                    dims = string(value);
+                end
+                return;
+            end
+        catch
+        end
     end
 end
 
@@ -222,7 +230,8 @@ function suites = generateTestSuite(strategy, modelName, componentPath, inports,
             suites = generateBoundaryTests(modelName, componentPath, inports, outports, sampleTime);
         case 'comprehensive'
             suites = [generateBasicTests(modelName, componentPath, inports, outports, sampleTime); ...
-                      generateBoundaryTests(modelName, componentPath, inports, outports, sampleTime)];
+                      generateBoundaryTests(modelName, componentPath, inports, outports, sampleTime); ...
+                      generateMcdcTests(modelName, componentPath, inports, outports, sampleTime)];
     end
 end
 
@@ -272,8 +281,8 @@ function suites = generateBasicTests(modelName, componentPath, inports, outports
     scenarios{end+1} = s;
 
     suites(1) = struct(...
-        'filename', char(compName + '_NominalTests.feature'), ...
-        'title', char(compName + ' Nominal Operation Tests'), ...
+        'filename', sprintf('%s_NominalTests.feature', compName), ...
+        'title', sprintf('%s Nominal Operation Tests', compName), ...
         'description', 'Basic functional verification of component behavior under normal operating conditions.', ...
         'scenarios', {scenarios});
 end
@@ -343,9 +352,63 @@ function suites = generateBoundaryTests(modelName, componentPath, inports, outpo
     end
 
     suites(1) = struct(...
-        'filename', char(compName + '_BoundaryTests.feature'), ...
-        'title', char(compName + ' Boundary & Edge Case Tests'), ...
+        'filename', sprintf('%s_BoundaryTests.feature', compName), ...
+        'title', sprintf('%s Boundary & Edge Case Tests', compName), ...
         'description', 'Verification of component behavior at boundary conditions and edge cases.', ...
+        'scenarios', {scenarios});
+end
+
+function suites = generateMcdcTests(modelName, componentPath, inports, outports, sampleTime)
+% Generate MCDC-oriented test cases by toggling each input independently.
+    suites = struct('filename', {}, 'title', {}, 'description', {}, 'scenarios', {});
+    [~, compName] = fileparts(componentPath);
+    if isempty(compName)
+        compName = modelName;
+    end
+
+    simTime = getSimTime(sampleTime);
+    scenarios = {};
+
+    % Nominal baseline
+    s = struct();
+    s.title = 'MCDC - nominal baseline';
+    s.description = 'Baseline scenario used to compare independent input toggles for MCDC-oriented analysis.';
+    s.given = cell(0, 2);
+    for i = 1:numel(inports)
+        s.given(end+1, :) = {makeSafePortName(inports(i).name), getMcdcStimulus(inports(i), 'nominal')}; %#ok<AGROW>
+    end
+    s.when = sprintf('simulate for %s in Normal mode', simTime);
+    s.then = generateBoundaryAssertions(outports);
+    s.isBaseline = true;
+    s.baselineFile = [char(compName) '_mcdc_baseline.mat'];
+    scenarios{end+1} = s;
+
+    % Independent high/low toggle for every input
+    for i = 1:numel(inports)
+        for polarity = ["high", "low"]
+            s = struct();
+            s.title = sprintf('MCDC - %s %s toggle', makeSafePortName(inports(i).name), polarity);
+            s.description = sprintf('Toggle %s to %s while holding all other inputs nominal.', inports(i).name, polarity);
+            s.given = cell(0, 2);
+            for j = 1:numel(inports)
+                if i == j
+                    stimulus = getMcdcStimulus(inports(j), char(polarity));
+                else
+                    stimulus = getMcdcStimulus(inports(j), 'nominal');
+                end
+                s.given(end+1, :) = {makeSafePortName(inports(j).name), stimulus}; %#ok<AGROW>
+            end
+            s.when = sprintf('simulate for %s in Normal mode', simTime);
+            s.then = generateBoundaryAssertions(outports);
+            s.isBaseline = false;
+            scenarios{end+1} = s;
+        end
+    end
+
+    suites(1) = struct(...
+        'filename', sprintf('%s_McdcTests.feature', compName), ...
+        'title', sprintf('%s MCDC-Oriented Tests', compName), ...
+        'description', 'Input toggle tests intended to support MCDC-oriented verification.', ...
         'scenarios', {scenarios});
 end
 
@@ -408,6 +471,41 @@ function stimulus = getMaxStimulus(portInfo)
         stimulus = 'const(2147483647)';
     else
         stimulus = 'const(1e6)';
+    end
+end
+
+function stimulus = getMcdcStimulus(portInfo, polarity)
+% Generate low/high nominal values for MCDC-oriented toggles.
+    dt = lower(portInfo.dataType);
+    switch lower(string(polarity))
+        case 'nominal'
+            if contains(dt, 'bool') || contains(dt, 'boolean')
+                stimulus = 'const(0)';
+            elseif contains(dt, 'uint') || contains(dt, 'int') || contains(dt, 'enum')
+                stimulus = 'const(0)';
+            else
+                stimulus = 'const(0)';
+            end
+        case 'high'
+            if contains(dt, 'bool') || contains(dt, 'boolean')
+                stimulus = 'const(1)';
+            elseif contains(dt, 'uint') || contains(dt, 'int') || contains(dt, 'enum')
+                stimulus = 'const(1)';
+            else
+                stimulus = 'const(1)';
+            end
+        case 'low'
+            if contains(dt, 'bool') || contains(dt, 'boolean')
+                stimulus = 'const(0)';
+            elseif contains(dt, 'uint') || contains(dt, 'enum')
+                stimulus = 'const(0)';
+            elseif contains(dt, 'int')
+                stimulus = 'const(-1)';
+            else
+                stimulus = 'const(-1)';
+            end
+        otherwise
+            stimulus = 'const(0)';
     end
 end
 
@@ -565,21 +663,52 @@ function reportFile = generateTestReport(testResults, outputDir)
     fprintf(fid, '<p><strong>Component:</strong> %s</p>\n', testResults.componentPath);
     fprintf(fid, '<p><strong>Strategy:</strong> %s</p>\n', testResults.strategy);
     fprintf(fid, '<p><strong>Generated:</strong> %s</p>\n', datetime('now'));
+    fprintf(fid, '<p><strong>Test Files:</strong> %d</p>\n', numel(testResults.featureFiles));
+
+    totalScenarios = 0;
+    for i = 1:numel(testResults.featureFiles)
+        totalScenarios = totalScenarios + countFeatureScenarios(testResults.featureFiles(i));
+    end
+    fprintf(fid, '<p><strong>Scenarios:</strong> %d</p>\n', totalScenarios);
 
     if isfield(testResults, 'suiteResults') && ~isempty(testResults.suiteResults)
-        passed = sum(arrayfun(@(x) strcmp(x.status, 'passed'), testResults.suiteResults));
+        passed = sum(cellfun(@(x) isfield(x, 'status') && strcmp(x.status, 'passed'), testResults.suiteResults));
         total = numel(testResults.suiteResults);
         fprintf(fid, '<p><strong>Results:</strong> %d / %d passed</p>\n', passed, total);
     end
     fprintf(fid, '</div>\n');
 
+    % Interface summary
+    fprintf(fid, '<h2>Interface Summary</h2>\n');
+    fprintf(fid, '<h3>Inputs</h3>\n');
+    fprintf(fid, '<table>\n');
+    fprintf(fid, '<tr><th>Name</th><th>Data Type</th><th>Dimensions</th><th>Sample Time</th></tr>\n');
+    for i = 1:numel(testResults.inports)
+        ip = testResults.inports(i);
+        fprintf(fid, '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n', ...
+            ip.name, ip.dataType, ip.dims, ip.sampleTime);
+    end
+    fprintf(fid, '</table>\n');
+
+    fprintf(fid, '<h3>Outputs</h3>\n');
+    fprintf(fid, '<table>\n');
+    fprintf(fid, '<tr><th>Name</th><th>Data Type</th><th>Dimensions</th><th>Sample Time</th></tr>\n');
+    for i = 1:numel(testResults.outports)
+        op = testResults.outports(i);
+        fprintf(fid, '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n', ...
+            op.name, op.dataType, op.dims, op.sampleTime);
+    end
+    fprintf(fid, '</table>\n');
+
     % Feature files table
     fprintf(fid, '<h2>Test Suites</h2>\n');
     fprintf(fid, '<table>\n');
-    fprintf(fid, '<tr><th>Feature File</th><th>Status</th><th>Details</th></tr>\n');
+    fprintf(fid, '<tr><th>Feature File</th><th>Scenarios</th><th>Status</th><th>Details</th></tr>\n');
 
     for i = 1:numel(testResults.featureFiles)
-        [~, fName] = fileparts(testResults.featureFiles(i));
+        featureFile = testResults.featureFiles(i);
+        [~, fName] = fileparts(featureFile);
+        scenarioCount = countFeatureScenarios(featureFile);
         status = 'N/A';
         details = 'Not executed';
 
@@ -587,9 +716,7 @@ function reportFile = generateTestReport(testResults, outputDir)
             sr = testResults.suiteResults{i};
             if strcmp(sr.status, 'passed')
                 status = '<span class="pass">PASS</span>';
-                if isfield(sr, 'result')
-                    details = strtrim(extractBefore(string(sr.result), 200));
-                end
+                details = 'Executed successfully';
             else
                 status = '<span class="fail">FAIL</span>';
                 if isfield(sr, 'error')
@@ -598,8 +725,25 @@ function reportFile = generateTestReport(testResults, outputDir)
             end
         end
 
-        fprintf(fid, '<tr><td>%s</td><td>%s</td><td>%s</td></tr>\n', ...
-            fName, status, details);
+        fprintf(fid, '<tr><td>%s</td><td>%d</td><td>%s</td><td>%s</td></tr>\n', ...
+            fName, scenarioCount, status, details);
+    end
+    fprintf(fid, '</table>\n');
+
+    % Scenario details
+    fprintf(fid, '<h2>Scenario Details</h2>\n');
+    fprintf(fid, '<table>\n');
+    fprintf(fid, '<tr><th>Feature File</th><th>Scenario</th><th>Inputs</th><th>Expected Outputs</th></tr>\n');
+    for i = 1:numel(testResults.testSuites)
+        suite = testResults.testSuites(i);
+        [~, fName] = fileparts(testResults.featureFiles(i));
+        for j = 1:numel(suite.scenarios)
+            sc = suite.scenarios{j};
+            inputText = formatScenarioInputs(sc);
+            outputText = formatScenarioOutputs(sc);
+            fprintf(fid, '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n', ...
+                fName, escapeHtml(sc.title), inputText, outputText);
+        end
     end
     fprintf(fid, '</table>\n');
 
@@ -607,8 +751,7 @@ function reportFile = generateTestReport(testResults, outputDir)
     fprintf(fid, '<h2>Next Steps</h2>\n');
     fprintf(fid, '<ul>\n');
     fprintf(fid, '<li>Review generated .feature files in: <code>%s</code></li>\n', outputDir);
-    fprintf(fid, '<li>Run tests manually: <code>model_test(''%s'', ''TestFile'', ''path/to/test.feature'')</code></li>\n', ...
-        testResults.modelName);
+    fprintf(fid, '<li>Run tests manually: <code>model_test(''TestFile'', ''path/to/test.feature'')</code></li>\n');
     fprintf(fid, '<li>Add more scenarios for additional coverage</li>\n');
     fprintf(fid, '<li>Use <code>coverage=''decision''</code> for coverage analysis</li>\n');
     fprintf(fid, '</ul>\n');
@@ -674,4 +817,54 @@ function rootPath = getToolkitRoot()
         end
     end
     rootPath = '';
+end
+
+function scenarioCount = countFeatureScenarios(featureFile)
+% Count Gherkin scenarios in a generated feature file.
+    scenarioCount = 0;
+    try
+        featureText = fileread(char(featureFile));
+        scenarioCount = numel(regexp(featureText, '^\s*Scenario\s*:', 'lineanchors'));
+    catch
+        scenarioCount = 0;
+    end
+end
+
+function text = formatScenarioInputs(sc)
+% Format scenario inputs for HTML report.
+    if ~isfield(sc, 'given') || isempty(sc.given)
+        text = '-';
+        return;
+    end
+
+    parts = strings(0, 1);
+    for i = 1:size(sc.given, 1)
+        parts(end+1) = sprintf('%s = %s', string(sc.given{i, 1}), string(sc.given{i, 2})); %#ok<AGROW>
+    end
+    text = escapeHtml(strjoin(parts, newline));
+end
+
+function text = formatScenarioOutputs(sc)
+% Format scenario output assertions for HTML report.
+    if ~isfield(sc, 'then') || isempty(sc.then)
+        text = '-';
+        return;
+    end
+
+    parts = strings(0, 1);
+    for i = 1:numel(sc.then)
+        parts(end+1) = sprintf('%s: %s', string(sc.then{i}.name), string(sc.then{i}.expr)); %#ok<AGROW>
+    end
+    text = escapeHtml(strjoin(parts, newline));
+end
+
+function text = escapeHtml(text)
+% Escape HTML-sensitive characters while preserving simple line breaks.
+    text = string(text);
+    text = replace(text, '&', '&amp;');
+    text = replace(text, '<', '&lt;');
+    text = replace(text, '>', '&gt;');
+    text = replace(text, char(10), '<br>');
+    text = replace(text, char(13), '');
+    text = char(text);
 end

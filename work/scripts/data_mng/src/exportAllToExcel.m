@@ -22,15 +22,16 @@ function result = exportAllToExcel(modelName, varargin)
         outputFile = fullfile(modelDir, [modelBase '_signals_cal.xlsx']);
     end
     mFile = fullfile(modelDir, [modelBase '_LoadCalParameter.m']);
+    tempSignalFile = [tempname(tempdir) '.xlsx'];
+    cleanupTempSignal = onCleanup(@() deleteIfExists(tempSignalFile));
 
     %% Step 1: Export signals
     fprintf('[1/4] Exporting signals...\n');
-    sigResult = exportSignalsToExcel(modelName, 'OutputFile', outputFile);
+    sigResult = exportSignalsToExcel(modelName, 'OutputFile', tempSignalFile);
     result.signalCount = sigResult.inputCount + sigResult.outputCount;
 
     %% Step 2: Scan ALL levels for calibration
-    fprintf('[2/4] Scanning all levels for cal_ blocks...\n');
-    typePrefixes = {'s8','s16','s32','s64','u8','u16','u32','u64','f32','f64','f16','b','bool'};
+    fprintf('[2/4] Scanning all levels for cal_ values...\n');
     load_system(modelName);
     allBlocks = find_system(modelBase, 'LookUnderMasks', 'all', 'FollowLinks', 'on', 'Type', 'Block');
     rawCals = {};
@@ -38,26 +39,18 @@ function result = exportAllToExcel(modelName, varargin)
         blk = allBlocks{i};
         if strcmp(blk, modelBase), continue; end
         try
-            name = get_param(blk, 'Name');
-            if ~startsWith(lower(name), 'cal_'), continue; end
-            afterCal = name(5:end);
-            if isempty(afterCal), continue; end
-            hasValidType = false;
-            for t = 1:numel(typePrefixes)
-                if startsWith(afterCal, typePrefixes{t}), hasValidType = true; break; end
-            end
-            if ~hasValidType, continue; end
             bt = get_param(blk, 'BlockType');
-            info = struct('name',name,'blockType',bt,'dataType',inferCalType(afterCal,typePrefixes));
+            calToken = extractCalToken(get_param(blk, 'Name'));
+            if isempty(calToken)
+                calToken = extractCalToken(get_param(blk, 'Value'));
+            end
+
+            if isempty(calToken), continue; end
+            info = struct('name',calToken,'swc',modelBase,'description','', 'blockType',bt,'dataType',inferCalTypeFromValue(calToken));
             try
-                switch bt
-                    case 'Constant', info.value = get_param(blk,'Value');
-                    case 'Gain', info.value = get_param(blk,'Gain');
-                    case 'Saturation', info.value = sprintf('[%s,%s]',get_param(blk,'LowerLimit'),get_param(blk,'UpperLimit'));
-                    case 'LookupTable', info.value = sprintf('Table: %s',get_param(blk,'Table'));
-                    otherwise, info.value = '';
-                end
+                info.value = get_param(blk,'Value');
             catch, info.value = ''; end
+            try info.description = get_param(blk,'Description'); catch, info.description=''; end
             try info.min = get_param(blk,'Min'); catch, info.min=''; end
             try info.max = get_param(blk,'Max'); catch, info.max=''; end
             try info.unit = get_param(blk,'Unit'); catch, info.unit=''; end
@@ -79,7 +72,7 @@ function result = exportAllToExcel(modelName, varargin)
 
     %% Step 3: Write combined Excel
     fprintf('[3/4] Writing combined Excel: %s\n', outputFile);
-    writeCombinedExcel(sigResult, calBlocks, outputFile);
+    writeCombinedExcel(sigResult, calBlocks, outputFile, modelBase);
 
     %% Step 4: Write .m file
     fprintf('[4/4] Writing .m file: %s\n', mFile);
@@ -94,55 +87,98 @@ function result = exportAllToExcel(modelName, varargin)
     fprintf('M-file: %s\n', mFile);
 end
 
-function writeCombinedExcel(sigResult, calBlocks, outputFile)
+function writeCombinedExcel(sigResult, calBlocks, outputFile, modelBase)
     % Sheet 1: Signals
-    if sigResult.inputCount + sigResult.outputCount > 0
-        headersS = {'PortName','Direction','DataType','Dimensions','SampleTime','ConnectedSignal','NamingStatus'};
-        nS = numel(sigResult.ports);
-        dataS = cell(nS, numel(headersS));
-        for i = 1:nS
-            p = sigResult.ports{i};
-            dataS{i,1}=p.name; dataS{i,2}=p.direction; dataS{i,3}=p.dataType;
-            dataS{i,4}=p.dimensions; dataS{i,5}=p.sampleTime;
-            dataS{i,6}=p.signalName; dataS{i,7}=p.prefixStatus;
-        end
-        writetable(cell2table(dataS,'VariableNames',headersS), outputFile, 'Sheet', 'Signals');
+    headersS = {'PortName','Direction','DataType','Dimensions','SampleTime','ConnectedSignal','NamingStatus'};
+    nS = numel(sigResult.ports);
+    dataS = cell(nS, numel(headersS));
+    for i = 1:nS
+        p = sigResult.ports{i};
+        dataS{i,1} = safeText(p.name);
+        dataS{i,2} = safeText(p.direction);
+        dataS{i,3} = safeText(p.dataType);
+        dataS{i,4} = safeText(p.dimensions);
+        dataS{i,5} = safeText(getFieldOrDefault(p, 'sampleTime', ''));
+        dataS{i,6} = safeText(getFieldOrDefault(p, 'signalName', ''));
+        dataS{i,7} = safeText(getFieldOrDefault(p, 'prefixStatus', ''));
     end
+    writetable(cell2table(dataS,'VariableNames',headersS), outputFile, 'Sheet', 'Signals');
     % Sheet 2: Calibration
-    if ~isempty(calBlocks)
-        headersC = {'Name','BlockType','DataType','Value','Min','Max','Unit'};
-        nC = numel(calBlocks);
-        dataC = cell(nC, numel(headersC));
-        for i = 1:nC
-            c = calBlocks{i};
-            dataC{i,1}=c.name; dataC{i,2}=c.blockType; dataC{i,3}=c.dataType;
-            dataC{i,4}=char(c.value); dataC{i,5}=char(c.min);
-            dataC{i,6}=char(c.max); dataC{i,7}=char(c.unit);
-        end
-        writetable(cell2table(dataC,'VariableNames',headersC), outputFile, 'Sheet', 'Calibration');
+    headersC = {'Name','BlockType','DataType','Value','Min','Max','Unit'};
+    nC = numel(calBlocks);
+    dataC = cell(nC, numel(headersC));
+    for i = 1:nC
+        c = calBlocks{i};
+        dataC{i,1} = c.name;
+        dataC{i,2} = safeText(c.blockType);
+        dataC{i,3} = safeText(c.dataType);
+        dataC{i,4} = safeText(c.value);
+        dataC{i,5} = safeText(getFieldOrDefault(c, 'min', ''));
+        dataC{i,6} = safeText(getFieldOrDefault(c, 'max', ''));
+        dataC{i,7} = safeText(getFieldOrDefault(c, 'unit', ''));
+    end
+    writetable(cell2table(dataC,'VariableNames',headersC), outputFile, 'Sheet', 'Calibration');
+end
+
+function deleteIfExists(filePath)
+    if isfile(filePath)
+        delete(filePath);
     end
 end
 
-function dt = inferCalType(afterCal, typePrefixes)
-    for t = 1:numel(typePrefixes)
-        p = typePrefixes{t};
-        if startsWith(afterCal, p)
-            rest = afterCal(length(p)+1:end);
-            if ~isempty(rest) && isletter(rest(1))
-                dt = typeMap(p); return;
+function dt = inferCalTypeFromValue(calToken)
+    afterCal = calToken(5:end);
+    if isempty(afterCal)
+        dt = 'Inherit: auto';
+        return;
+    end
+
+    prefixes = {'s8','s16','s32','s64','u8','u16','u32','u64','f32','f64','f16','b','bool'};
+    for t = 1:numel(prefixes)
+        prefix = prefixes{t};
+        if startsWith(lower(afterCal), prefix)
+            rest = afterCal(length(prefix)+1:end);
+            if isempty(rest) || ~isletter(rest(1))
+                continue;
             end
+            switch prefix
+                case 's8', dt = 'int8';
+                case 's16', dt = 'int16';
+                case 's32', dt = 'int32';
+                case 's64', dt = 'int64';
+                case 'u8', dt = 'uint8';
+                case 'u16', dt = 'uint16';
+                case 'u32', dt = 'uint32';
+                case 'u64', dt = 'uint64';
+                case 'f32', dt = 'single';
+                case 'f64', dt = 'double';
+                case 'f16', dt = 'half';
+                case {'b','bool'}, dt = 'boolean';
+                otherwise, dt = 'Inherit: auto';
+            end
+            return;
         end
     end
+
     dt = 'Inherit: auto';
 end
 
-function dt = typeMap(prefix)
-    m = containers.Map();
-    m('s8')='int8'; m('s16')='int16'; m('s32')='int32'; m('s64')='int64';
-    m('u8')='uint8'; m('u16')='uint16'; m('u32')='uint32'; m('u64')='uint64';
-    m('f32')='single'; m('f64')='double'; m('f16')='half';
-    m('b')='boolean'; m('bool')='boolean';
-    if isKey(m, prefix), dt = m(prefix); else, dt = 'Inherit: auto'; end
+function calToken = extractCalToken(paramValue)
+    calToken = '';
+    if isempty(paramValue)
+        return;
+    end
+    if isstring(paramValue)
+        paramValue = char(paramValue);
+    end
+    if ~ischar(paramValue)
+        return;
+    end
+
+    candidate = regexp(paramValue, 'cal_[A-Za-z0-9_]+', 'match', 'once');
+    if ~isempty(candidate)
+        calToken = candidate;
+    end
 end
 
 function writeCalMFile(calBlocks, mFile, modelName)
@@ -154,20 +190,25 @@ function writeCalMFile(calBlocks, mFile, modelName)
         name = c.name;
         val = char(c.value);
         dt = c.dataType;
-        numVal = str2double(val);
         sc = getStorageClass(dt);
         fprintf(fid, '%%%% %s\n', name);
-        if ~isnan(numVal)
+        if isExportableCalValue(val)
             fprintf(fid, '%s = NoneSAR.Parameter;\n', name);
-            fprintf(fid, '%s.Value = %s;\n', name, val);
+            fprintf(fid, '%s.Value = 0;\n', name);
             fprintf(fid, '%s.DataType = ''%s'';\n', name, dt);
             fprintf(fid, '%s.CoderInfo.StorageClass = ''Custom'';\n', name);
             fprintf(fid, '%s.CoderInfo.CustomStorageClass = ''%s'';\n', name, sc);
-            if ~isempty(c.min) && strlength(strtrim(c.min)) > 0
-                if ~isnan(str2double(c.min)), fprintf(fid, '%s.Min = %s;\n', name, c.min); end
+            if isfield(c, 'description') && ~isempty(c.description) && strlength(strtrim(string(c.description))) > 0
+                fprintf(fid, '%s.Description = ''%s'';\n', name, escapeQuotes(c.description));
             end
-            if ~isempty(c.max) && strlength(strtrim(c.max)) > 0
-                if ~isnan(str2double(c.max)), fprintf(fid, '%s.Max = %s;\n', name, c.max); end
+            if isValidNumericScalar(c.min)
+                fprintf(fid, '%s.Min = %s;\n', name, formatNumericScalar(c.min));
+            end
+            if isValidNumericScalar(c.max)
+                fprintf(fid, '%s.Max = %s;\n', name, formatNumericScalar(c.max));
+            end
+            if isfield(c, 'unit') && ~isempty(c.unit) && strlength(strtrim(string(c.unit))) > 0
+                fprintf(fid, '%s.Unit = ''%s'';\n', name, escapeQuotes(c.unit));
             end
         else
             fprintf(fid, '%% %s - Value: %s (manual setup needed)\n', name, val);
@@ -175,6 +216,119 @@ function writeCalMFile(calBlocks, mFile, modelName)
         fprintf(fid, '\n');
     end
     fclose(fid);
+end
+
+function ok = isExportableCalValue(val)
+    ok = false;
+    if isempty(val)
+        return;
+    end
+
+    numVal = str2double(val);
+    if ~isnan(numVal)
+        ok = true;
+        return;
+    end
+
+    if ~isempty(regexp(val, '^cal_[A-Za-z0-9_]+$', 'once'))
+        ok = true;
+    end
+end
+
+function literal = zeroLiteralForDataType(dt)
+    switch lower(strtrim(char(dt)))
+        case 'int8'
+            literal = 'int8(0)';
+        case 'uint8'
+            literal = 'uint8(0)';
+        case 'int16'
+            literal = 'int16(0)';
+        case 'uint16'
+            literal = 'uint16(0)';
+        case 'int32'
+            literal = 'int32(0)';
+        case 'uint32'
+            literal = 'uint32(0)';
+        case 'int64'
+            literal = 'int64(0)';
+        case 'uint64'
+            literal = 'uint64(0)';
+        case 'single'
+            literal = 'single(0)';
+        case 'double'
+            literal = '0';
+        case 'half'
+            literal = 'half(0)';
+        case 'boolean'
+            literal = 'false';
+        otherwise
+            literal = '0';
+    end
+end
+
+function ok = isValidNumericScalar(value)
+    ok = false;
+    if isempty(value)
+        return;
+    end
+    if isnumeric(value)
+        ok = isscalar(value) && isfinite(value);
+        return;
+    end
+    if isstring(value) || ischar(value)
+        numericValue = str2double(string(value));
+        ok = isfinite(numericValue);
+    end
+end
+
+function text = safeText(value)
+    if ismissing(value)
+        text = '';
+        return;
+    end
+    if isstring(value)
+        if isempty(value)
+            text = '';
+        else
+            text = char(value);
+        end
+        return;
+    end
+    if ischar(value)
+        text = value;
+        return;
+    end
+    if isnumeric(value)
+        if isempty(value)
+            text = '';
+        elseif isscalar(value)
+            text = num2str(value);
+        else
+            text = mat2str(value);
+        end
+        return;
+    end
+    try
+        text = char(string(value));
+    catch
+        text = '';
+    end
+end
+
+function value = getFieldOrDefault(s, fieldName, defaultValue)
+    if isstruct(s) && isfield(s, fieldName) && ~isempty(s.(fieldName))
+        value = s.(fieldName);
+    else
+        value = defaultValue;
+    end
+end
+
+function text = formatNumericScalar(value)
+    if isnumeric(value)
+        text = num2str(value);
+        return;
+    end
+    text = char(string(value));
 end
 
 function sc = getStorageClass(dt)
