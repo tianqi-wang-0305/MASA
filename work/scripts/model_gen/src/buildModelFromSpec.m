@@ -89,14 +89,12 @@ function modelName = buildModelFromSpec(spec, saveDir)
         numel(inputs), numel(outputs), numel(subsystems));
 
     % Add input ports
-    portRefs = struct();
     yPos = 50;
     for i = 1:numel(inputs)
         blkName = inputs(i).name;
         add_block('simulink/Sources/In1', [modelName '/' blkName]);
         set_param([modelName '/' blkName], 'Position', [50, yPos, 80, yPos+20]);
         try set_param([modelName '/' blkName], 'OutDataTypeStr', inputs(i).dataType); catch, end
-        portRefs.(genvarname(blkName)) = struct('block', blkName, 'type', 'Inport');
         yPos = yPos + 40;
     end
 
@@ -107,32 +105,43 @@ function modelName = buildModelFromSpec(spec, saveDir)
         add_block('simulink/Sinks/Out1', [modelName '/' blkName]);
         set_param([modelName '/' blkName], 'Position', [650, yPos, 680, yPos+20]);
         try set_param([modelName '/' blkName], 'OutDataTypeStr', outputs(i).dataType); catch, end
-        portRefs.(genvarname(blkName)) = struct('block', blkName, 'type', 'Outport');
         yPos = yPos + 40;
     end
 
-    % Add subsystems
-    subPos = 100;
+    % Add top-level wrapper subsystem; all logic lives inside it.
+    wrapperName = 'MainSubsystem';
+    add_block('simulink/Ports & Subsystems/Subsystem', [modelName '/' wrapperName]);
+    wrapperHeight = max(220, 90 + 35 * max([1, numel(inputs), numel(outputs), numel(subsystems)]));
+    wrapperWidth = 320;
+    wrapperLeft = 230;
+    wrapperTop = max(40, 40 + 10 * abs(numel(inputs) - numel(outputs)));
+    set_param([modelName '/' wrapperName], 'Position', [wrapperLeft, wrapperTop, wrapperLeft + wrapperWidth, wrapperTop + wrapperHeight]);
+    set_param([modelName '/' wrapperName], 'Description', 'Top-level wrapper that contains the generated functional subsystems and internal logic.');
+
+    wrapperPath = [modelName '/' wrapperName];
+    createWrapperInterface(wrapperPath, inputs, outputs);
+
+    % Add subsystems inside the wrapper
+    subPos = 80;
     for i = 1:numel(subsystems)
         blkName = subsystems(i).name;
-        add_block('simulink/Ports & Subsystems/Subsystem', [modelName '/' blkName]);
-        set_param([modelName '/' blkName], 'Position', [250, subPos, 400, subPos+80]);
-        portRefs.(genvarname(blkName)) = struct('block', blkName, 'type', 'SubSystem');
+        add_block('simulink/Ports & Subsystems/Subsystem', [wrapperPath '/' blkName]);
+        set_param([wrapperPath '/' blkName], 'Position', [200, subPos, 430, subPos+80]);
+        setSubsystemDescription([wrapperPath '/' blkName], getDescription(subsystems(i), sprintf('Subsystem %s', blkName)));
         subPos = subPos + 120;
     end
 
-    % Add constants
+    % Add constants inside the wrapper
     for i = 1:numel(constants)
         blkName = constants(i).name;
-        add_block('simulink/Sources/Constant', [modelName '/' blkName]);
+        add_block('simulink/Sources/Constant', [wrapperPath '/' blkName]);
         val = num2str(constants(i).value);
-        set_param([modelName '/' blkName], 'Value', val);
-        set_param([modelName '/' blkName], 'Position', [150, subPos, 220, subPos+20]);
-        portRefs.(genvarname(blkName)) = struct('block', blkName, 'type', 'Constant');
+        set_param([wrapperPath '/' blkName], 'Value', val);
+        set_param([wrapperPath '/' blkName], 'Position', [120, subPos, 190, subPos+20]);
         subPos = subPos + 40;
     end
 
-    %% Apply connections
+    %% Apply connections inside the wrapper
     for i = 1:numel(connections)
         conn = connections{i};
         if ischar(conn) || isstring(conn)
@@ -142,7 +151,7 @@ function modelName = buildModelFromSpec(spec, saveDir)
                 src = strtrim(parts{1});
                 dst = strtrim(parts{2});
                 try
-                    add_line(modelName, [src '/1'], [dst '/1']);
+                    add_line(wrapperPath, [src '/1'], [dst '/1']);
                 catch ME
                     fprintf('  ⚠ Connection failed: %s -> %s (%s)\n', src, dst, ME.message);
                 end
@@ -158,15 +167,19 @@ function modelName = buildModelFromSpec(spec, saveDir)
 
         switch logicType
             case 'threshold'
-                addThresholdLogic(modelName, subName, params);
+                addThresholdLogic(wrapperPath, subName, params);
             case 'pid'
-                addPIDLogic(modelName, subName, params);
+                addPIDLogic(wrapperPath, subName, params);
             case 'filter'
-                addFilterLogic(modelName, subName, params);
+                addFilterLogic(wrapperPath, subName, params);
             otherwise
                 fprintf('  ⚠ Unknown logic type: %s for %s\n', logicType, subName);
         end
     end
+
+    % Connect top-level I/O ports to the wrapper subsystem by port index.
+    connectTopLevelPorts(modelName, wrapperPath, inputs, outputs);
+    Simulink.BlockDiagram.arrangeSystem(wrapperPath);
 
     %% Save
     fprintf('[3/3] Saving model...\n');
@@ -186,6 +199,68 @@ function modelName = buildModelFromSpec(spec, saveDir)
         'connections', {connections}, 'internalLogic', {internalLogic});
     result.reportFile = generateBuildReport(specSummary, saveDir);
     fprintf('Report: %s\n', result.reportFile);
+end
+
+function createWrapperInterface(wrapperPath, inputs, outputs)
+    clearDefaultSubsystemPorts(wrapperPath);
+
+    inY = 50;
+    for i = 1:numel(inputs)
+        blk = [wrapperPath '/' inputs(i).name];
+        add_block('simulink/Sources/In1', blk, 'Position', [30, inY, 60, inY + 20]);
+        try set_param(blk, 'OutDataTypeStr', inputs(i).dataType); catch, end
+        inY = inY + 35;
+    end
+
+    outY = 50;
+    for i = 1:numel(outputs)
+        blk = [wrapperPath '/' outputs(i).name];
+        add_block('simulink/Sinks/Out1', blk, 'Position', [720, outY, 750, outY + 20]);
+        try set_param(blk, 'OutDataTypeStr', outputs(i).dataType); catch, end
+        outY = outY + 35;
+    end
+end
+
+function clearDefaultSubsystemPorts(wrapperPath)
+    children = find_system(wrapperPath, 'SearchDepth', 1, 'Type', 'Block');
+    for i = 1:numel(children)
+        childPath = children{i};
+        if strcmp(childPath, wrapperPath)
+            continue;
+        end
+        try
+            blockType = get_param(childPath, 'BlockType');
+        catch
+            blockType = '';
+        end
+        if strcmp(blockType, 'Inport') || strcmp(blockType, 'Outport')
+            delete_block(childPath);
+        end
+    end
+end
+
+function connectTopLevelPorts(modelName, wrapperPath, inputs, outputs)
+    wrapperBlockName = get_param(wrapperPath, 'Name');
+    for i = 1:numel(inputs)
+        add_line(modelName, [inputs(i).name '/1'], [wrapperBlockName '/' num2str(i)], 'autorouting', 'on');
+    end
+    for i = 1:numel(outputs)
+        add_line(modelName, [wrapperBlockName '/' num2str(i)], [outputs(i).name '/1'], 'autorouting', 'on');
+    end
+end
+
+function desc = getDescription(subsystemSpec, defaultDesc)
+    desc = defaultDesc;
+    if isfield(subsystemSpec, 'description') && ~isempty(subsystemSpec.description)
+        desc = subsystemSpec.description;
+    end
+end
+
+function setSubsystemDescription(blockPath, descriptionText)
+    try
+        set_param(blockPath, 'Description', descriptionText);
+    catch
+    end
 end
 
 function reportFile = generateBuildReport(spec, outputDir)

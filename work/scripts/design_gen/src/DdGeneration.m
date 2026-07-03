@@ -200,8 +200,8 @@ if numel(sheets) < 1
     return;
 end
 
-signalSheet = findSheetByName(sheets, "signal");
-calSheet = findSheetByName(sheets, "cal");
+signalSheet = findSheetByName(sheets, ["signals", "signal"]);
+calSheet = findSheetByName(sheets, ["calibration", "cal"]);
 
 if strlength(signalSheet) == 0
     signalSheet = sheets(1);
@@ -216,12 +216,15 @@ if strlength(calSheet) > 0
 end
 end
 
-function sheetName = findSheetByName(sheets, targetName)
+function sheetName = findSheetByName(sheets, targetNames)
 sheetName = "";
 for i = 1:numel(sheets)
-    if strcmpi(strtrim(string(sheets(i))), targetName)
-        sheetName = string(sheets(i));
-        return;
+    currentName = strtrim(string(sheets(i)));
+    for j = 1:numel(targetNames)
+        if strcmpi(currentName, string(targetNames(j)))
+            sheetName = string(sheets(i));
+            return;
+        end
     end
 end
 end
@@ -347,20 +350,12 @@ end
 end
 
 function filtered = selectSignalColumns(dataTable)
-preferred = ["SignalName", "Direction", "Description", "DataType"];
+preferred = ["PortName", "SignalName", "Direction", "DataType"];
 filtered = selectExistingColumns(dataTable, preferred);
-if ~any(strcmpi(filtered.Properties.VariableNames, "Description"))
-    filtered.Description = repmat(string(""), height(filtered), 1);
-    if any(strcmpi(filtered.Properties.VariableNames, "Direction"))
-        filtered = movevars(filtered, "Description", "After", "Direction");
-    else
-        filtered = movevars(filtered, "Description", "After", filtered.Properties.VariableNames{1});
-    end
-end
 end
 
 function filtered = selectCalibrationColumns(dataTable)
-preferred = ["Name", "SWC", "Description", "Type", "DataType", "Value"];
+preferred = ["Name", "BlockType", "DataType", "Value"];
 filtered = selectExistingColumns(dataTable, preferred);
 end
 
