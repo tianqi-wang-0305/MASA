@@ -73,8 +73,7 @@ satk_initialize
 
 | Command | 功能 | 入口 |
 |---------|------|------|
-| `/generateAISDD` | AI 增强 ASPICE 详细设计 PDF | `DdGeneration_AI.m` |
-| `/runAIPipeline` | 一键流水线：SDD + 测试 | `runAIPipeline.m` |
+| `DdGeneration.m`（已有）| 详细设计 PDF | 用户已有的脚本 |
 
 ---
 
@@ -84,7 +83,7 @@ satk_initialize
 masa/
 ├── .github/
 │   ├── AGENTS.md              ← Agent 总说明
-│   ├── prompts/               ← 16 个 Slash Command 定义（唯一入口）
+│   ├── prompts/               ← 14 个 Slash Command 定义
 │   └── workflows/
 │       └── simulink-ci.yml.disabled  ← CI 流水线（已暂停）
 │
@@ -93,12 +92,6 @@ masa/
 │   ├── matlab-mcp-core-server/      ← [submodule] MATLAB MCP 服务
 │   │
 │   ├── scripts/
-│   │   ├── runAIPipeline.m          ← 统一入口
-│   │   ├── ai_sdd/                 ← SDD 文档生成
-│   │   │   ├── DdGeneration_AI.m   ← AI 增强 SDD 生成器
-│   │   │   ├── DdGeneration_ASPICE.m ← ASPICE 基线版
-│   │   │   ├── analyzeModelDeepForSDD.m ← 深度分析引擎
-│   │   │   └── ref/                ← ASPICE 模板
 │   │   ├── review_gen/             ← 综合 Review + 命名/连线/层级检查
 │   │   │   ├── reviewModel.m       ← Review 引擎（7 项检查 + 修改建议）
 │   │   │   ├── reviewReqConsistency.m ← 需求-模型一致性比对
