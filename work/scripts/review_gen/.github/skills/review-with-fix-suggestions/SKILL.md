@@ -3,7 +3,7 @@ name: review-with-fix-suggestions
 description: "Run comprehensive model review and get specific fix suggestions for each issue found, with prioritized action plan. Use when you want not just problems but also exactly what to change."
 license: MIT
 metadata:
-  author: autoModeling
+  author: MASA
   version: "1.0"
 ---
 

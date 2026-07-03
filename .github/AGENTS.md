@@ -1,4 +1,4 @@
-# autoModeling — AI-Powered Simulink Automation
+# MASA — Model-based Automation for Simulink Applications
 
 This project provides a comprehensive AI-powered automation framework for Simulink-based application layer software development.
 

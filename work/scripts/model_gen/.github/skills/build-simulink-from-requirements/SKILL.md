@@ -3,7 +3,7 @@ name: build-simulink-from-requirements
 description: "Build Simulink models from natural language software requirements. Use when user describes a control algorithm, signal processing chain, or state machine they want implemented as a Simulink model. Parses requirements, designs architecture, builds with model_edit, and validates with model_check."
 license: MIT
 metadata:
-  author: autoModeling
+  author: MASA
   version: "1.0"
 ---
 

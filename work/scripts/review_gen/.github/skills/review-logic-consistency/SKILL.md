@@ -3,7 +3,7 @@ name: review-logic-consistency
 description: "Review whether a Simulink model's logical implementation matches the software requirements. The AI reads requirements, explores the model using MCP tools, and reports behavioral inconsistencies."
 license: MIT
 metadata:
-  author: autoModeling
+  author: MASA
   version: "1.0"
 ---
 

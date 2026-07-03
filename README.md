@@ -1,4 +1,4 @@
-# autoModeling — AI-Powered Simulink Automation Framework
+# MASA — Model-based Automation for Simulink Applications
 
 基于 [Simulink Agentic Toolkit](https://github.com/matlab/simulink-agentic-toolkit) 的应用层软件自动化开发框架。  
 通过 AI Agent + MCP 工具 + 自动化脚本，覆盖 **模型搭建 → 验证 → 测试 → 文档 → 代码生成** 全流程。
@@ -16,7 +16,7 @@
 
 ```matlab
 % 1. 克隆仓库（包含 submodule）
-git clone --recurse-submodules https://github.com/tianqi-wang-0305/autoModeling.git
+git clone --recurse-submodules https://github.com/tianqi-wang-0305/masa.git
 
 % 2. 编译 MCP 服务器（仅首次）
 cd work/matlab-mcp-core-server && make build && cd ../..
@@ -81,7 +81,7 @@ satk_initialize
 ## 项目结构
 
 ```
-autoModeling/
+masa/
 ├── .github/
 │   ├── AGENTS.md              ← Agent 总说明
 │   ├── prompts/               ← 16 个 Slash Command 定义（唯一入口）
