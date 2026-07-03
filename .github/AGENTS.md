@@ -9,7 +9,6 @@ Type `/` in chat to see these commands:
 | Command | Description |
 |---------|-------------|
 | `/runAIPipeline` | Run full pipeline: SDD + Tests for a model |
-| `/generateAISDD` | Generate AI-enhanced ASPICE SDD PDF |
 | `/generateModelTests` | Auto-generate Simulink Test .feature files |
 | `/buildModel` | Build any Simulink model from natural language requirements |
 | `/autoLayout` | Auto-layout model: align ports, arrange subsystems |
