@@ -8,6 +8,8 @@ argument-hint: "<model.slx> [excel.xlsx] [options]"
 
 Execute the complete AI-powered Simulink automation pipeline for the specified model.
 
+If the target model has many input or output interfaces, keep the generated wrapper/model layout tall enough to preserve readable port spacing. The pipeline should favor vertically expanded subsystem windows over compressed interface rows.
+
 ## Usage
 
 ```
@@ -49,3 +51,5 @@ Execute the complete AI-powered Simulink automation pipeline for the specified m
    ```
 
    Or guide the user to paste the command into MATLAB Command Window.
+
+5. **Post-layout rule**: If the model is interface-dense, run the layout step in a mode that preserves vertical spacing and aligns the wrapper port rows with the root interface blocks.

@@ -10,9 +10,13 @@ function testResults = generateModelTests(modelPath, varargin)
 %                       'OutputDir' - output directory (default: model folder)
 %                       'Strategy'  - test strategy: 'basic'|'boundary'|'comprehensive'
 %                       'RunTests'  - true/false (default: true)
+%                       'GenerateSignalEditorArtifacts' - true/false (default: true)
+%                       'GenerateTestManagerArtifacts' - true/false (default: true)
+%                       'RunTestManager' - true/false (default: true)
 %
 %   Outputs:
-%       testResults   - Struct with test paths, results, and coverage
+%       testResults   - Struct with feature files, Signal Editor MAT files,
+%                       harnesses, results, and coverage
 %
 %   Usage:
 %       % Test entire model
@@ -35,6 +39,9 @@ function testResults = generateModelTests(modelPath, varargin)
     addParameter(p, 'OutputDir', '', @ischar);
     addParameter(p, 'Strategy', 'comprehensive', @(x) any(validatestring(x, {'basic', 'boundary', 'comprehensive'})));
     addParameter(p, 'RunTests', true, @islogical);
+    addParameter(p, 'GenerateSignalEditorArtifacts', true, @islogical);
+    addParameter(p, 'GenerateTestManagerArtifacts', true, @islogical);
+    addParameter(p, 'RunTestManager', true, @islogical);
     parse(p, modelPath, varargin{:});
 
     modelPath = char(p.Results.modelPath);
@@ -42,6 +49,9 @@ function testResults = generateModelTests(modelPath, varargin)
     outputDir = p.Results.OutputDir;
     strategy = p.Results.Strategy;
     shouldRun = p.Results.RunTests;
+    shouldGenerateSignalEditorArtifacts = p.Results.GenerateSignalEditorArtifacts;
+    shouldGenerateTestManagerArtifacts = p.Results.GenerateTestManagerArtifacts;
+    shouldRunTestManager = p.Results.RunTestManager;
 
     %% 0) Resolve paths
     [modelDir, modelBase, ~] = fileparts(modelPath);
@@ -62,6 +72,8 @@ function testResults = generateModelTests(modelPath, varargin)
     if ~isempty(toolkitRoot)
         addpath(toolkitRoot);
     end
+
+    artifactTag = regexprep(char(java.util.UUID.randomUUID), '-', '');
 
     %% 1) Load model and analyze component
     fprintf('[1/5] Loading model: %s\n', modelName);
@@ -108,14 +120,30 @@ function testResults = generateModelTests(modelPath, varargin)
     testResults.modelName = modelName;
     testResults.componentPath = componentPath;
     testResults.featureFiles = featureFiles;
+    testResults.signalEditorFiles = strings(0, 1);
+    testResults.signalEditorHarnesses = strings(0, 1);
+    testResults.testManagerFile = '';
+    testResults.testManagerReport = '';
     testResults.testSuites = testSuites;
     testResults.strategy = strategy;
     testResults.inports = inports;
     testResults.outports = outports;
     testResults.suiteResults = {};
 
+    if shouldGenerateSignalEditorArtifacts
+        fprintf('[4] Generating Signal Editor artifacts...\n');
+        [testResults.signalEditorFiles, testResults.signalEditorHarnesses] = ...
+            generateSignalEditorArtifacts(featureFiles, modelName, outputDir, artifactTag, inports);
+    end
+
+    if shouldGenerateTestManagerArtifacts
+        fprintf('[5] Generating Test Manager artifacts...\n');
+        [testResults.testManagerFile, testResults.testManagerReport] = ...
+            generateTestManagerArtifacts(modelPath, modelName, componentPath, outputDir, testResults, artifactTag, shouldRunTestManager);
+    end
+
     if shouldRun
-        fprintf('[4/5] Running tests...\n');
+        fprintf('[6] Running tests...\n');
 
         for i = 1:numel(featureFiles)
             featureFile = featureFiles(i);
@@ -140,12 +168,22 @@ function testResults = generateModelTests(modelPath, varargin)
     end
 
     %% 4) Generate test report summary
-    fprintf('[5/5] Generating test report...\n');
+    fprintf('[7] Generating test report...\n');
     testResults.reportFile = generateTestReport(testResults, outputDir);
 
     %% 5) Summary
     fprintf('\n=== Test Generation Complete ===\n');
     fprintf('Feature files: %d\n', numel(featureFiles));
+    if shouldGenerateSignalEditorArtifacts
+        fprintf('Signal Editor MAT files: %d\n', numel(testResults.signalEditorFiles));
+        fprintf('Signal Editor harnesses: %d\n', numel(testResults.signalEditorHarnesses));
+    end
+    if shouldGenerateTestManagerArtifacts
+        fprintf('Test Manager file: %s\n', testResults.testManagerFile);
+        if shouldRunTestManager
+            fprintf('Test Manager report: %s\n', testResults.testManagerReport);
+        end
+    end
     if shouldRun
         passed = sum(cellfun(@(x) isfield(x, 'status') && strcmp(x.status, 'passed'), testResults.suiteResults));
         fprintf('Tests passed: %d / %d\n', passed, numel(testResults.suiteResults));
@@ -192,6 +230,72 @@ function [inports, outports, dataTypes, sampleTime] = analyzeComponentInterface(
     sampleTime = get_param(componentPath, 'FixedStep');
     if isempty(sampleTime)
         sampleTime = '0.01'; % default
+    end
+end
+
+function [tmPath, reportPath] = generateTestManagerArtifacts(modelPath, modelName, componentPath, outputDir, testResults, artifactTag, shouldRunTestManager)
+% Generate a Test Manager mldatx file that runs the generated harnesses.
+    tmPath = fullfile(outputDir, sprintf('%s_TestManager_%s.mldatx', modelName, artifactTag));
+    reportPath = fullfile(outputDir, sprintf('%s_TestManager_%s_report.docx', modelName, artifactTag));
+
+    if exist(tmPath, 'file')
+        delete(tmPath);
+    end
+    if exist(reportPath, 'file')
+        delete(reportPath);
+    end
+
+    addpath(outputDir);
+    pathCleanup = onCleanup(@() rmpath(outputDir)); %#ok<NASGU>
+
+    load_system(modelPath);
+    tf = sltest.testmanager.TestFile(tmPath);
+    fileCov = tf.getCoverageSettings;
+    fileCov.RecordCoverage = true;
+    fileCov.MdlRefCoverage = true;
+    fileCov.MetricSettings = "decision";
+    suite = tf.createTestSuite('AllHarnesses');
+    suite.setProperty('SetupCallback', '');
+    suite.setProperty('CleanupCallback', '');
+
+    for i = 1:numel(testResults.testSuites)
+        suiteInfo = testResults.testSuites(i);
+        [~, harnessBase] = fileparts(testResults.signalEditorHarnesses(i));
+        sltest.harness.load(modelName, harnessBase);
+
+        for j = 1:numel(suiteInfo.scenarios)
+            scenario = suiteInfo.scenarios{j};
+            caseName = makeSafeName(sprintf('%s_%s', suiteInfo.filename, scenario.title));
+            tc = suite.createTestCase('simulation', caseName);
+            tc.setProperty('Model', modelName, ...
+                'HarnessOwner', modelName, ...
+                'HarnessName', harnessBase, ...
+                'UseSignalEditorScenarios', true, ...
+                'SignalEditorScenario', makeSafeName(scenario.title), ...
+                'SimulationMode', 'Normal', ...
+                'SaveInputRunInTestResult', true, ...
+                'SaveOutput', true, ...
+                'SignalLogging', true, ...
+                'OverrideModelOutputSettings', true);
+
+            cov = tc.getCoverageSettings;
+            cov.RecordCoverage = true;
+            cov.MdlRefCoverage = true;
+        end
+    end
+
+    tf.saveToFile;
+
+    if isempty(tf.getAllTestCases())
+        error('No Test Manager cases were created.');
+    end
+
+    if shouldRunTestManager
+        resultSet = tf.run;
+        sltest.testmanager.report(resultSet, reportPath, ...
+            IncludeCoverageResult=true, ...
+            LaunchReport=false, ...
+            Title=sprintf('%s Test Manager Report', modelName));
     end
 end
 
@@ -664,6 +768,18 @@ function reportFile = generateTestReport(testResults, outputDir)
     fprintf(fid, '<p><strong>Strategy:</strong> %s</p>\n', testResults.strategy);
     fprintf(fid, '<p><strong>Generated:</strong> %s</p>\n', datetime('now'));
     fprintf(fid, '<p><strong>Test Files:</strong> %d</p>\n', numel(testResults.featureFiles));
+    if isfield(testResults, 'signalEditorFiles') && ~isempty(testResults.signalEditorFiles)
+        fprintf(fid, '<p><strong>Signal Editor MAT Files:</strong> %d</p>\n', numel(testResults.signalEditorFiles));
+    end
+    if isfield(testResults, 'signalEditorHarnesses') && ~isempty(testResults.signalEditorHarnesses)
+        fprintf(fid, '<p><strong>Signal Editor Harnesses:</strong> %d</p>\n', numel(testResults.signalEditorHarnesses));
+    end
+    if isfield(testResults, 'testManagerFile') && strlength(string(testResults.testManagerFile)) > 0
+        fprintf(fid, '<p><strong>Test Manager File:</strong> %s</p>\n', escapeHtml(testResults.testManagerFile));
+    end
+    if isfield(testResults, 'testManagerReport') && strlength(string(testResults.testManagerReport)) > 0
+        fprintf(fid, '<p><strong>Test Manager Report:</strong> %s</p>\n', escapeHtml(testResults.testManagerReport));
+    end
 
     totalScenarios = 0;
     for i = 1:numel(testResults.featureFiles)
@@ -751,6 +867,13 @@ function reportFile = generateTestReport(testResults, outputDir)
     fprintf(fid, '<h2>Next Steps</h2>\n');
     fprintf(fid, '<ul>\n');
     fprintf(fid, '<li>Review generated .feature files in: <code>%s</code></li>\n', outputDir);
+    if isfield(testResults, 'signalEditorFiles') && ~isempty(testResults.signalEditorFiles)
+        fprintf(fid, '<li>Load Signal Editor MAT files from: <code>%s</code></li>\n', outputDir);
+        fprintf(fid, '<li>Open the generated Signal Editor harness models in the same folder</li>\n');
+    end
+    if isfield(testResults, 'testManagerFile') && strlength(string(testResults.testManagerFile)) > 0
+        fprintf(fid, '<li>Open Test Manager file: <code>%s</code></li>\n', escapeHtml(testResults.testManagerFile));
+    end
     fprintf(fid, '<li>Run tests manually: <code>model_test(''TestFile'', ''path/to/test.feature'')</code></li>\n');
     fprintf(fid, '<li>Add more scenarios for additional coverage</li>\n');
     fprintf(fid, '<li>Use <code>coverage=''decision''</code> for coverage analysis</li>\n');
@@ -867,4 +990,67 @@ function text = escapeHtml(text)
     text = replace(text, char(10), '<br>');
     text = replace(text, char(13), '');
     text = char(text);
+end
+
+function [signalEditorFiles, signalEditorHarnesses] = generateSignalEditorArtifacts(featureFiles, modelName, outputDir, artifactTag, inports)
+% Generate Signal Editor .mat inputs and executable harness models.
+    signalEditorFiles = strings(0, 1);
+    signalEditorHarnesses = strings(0, 1);
+
+    for i = 1:numel(featureFiles)
+        featureFile = featureFiles(i);
+        [~, featureStem] = fileparts(featureFile);
+        signalMat = fullfile(outputDir, sprintf('%s_stimulus.mat', featureStem));
+        harnessName = sprintf('%s_SignalEditorHarness_%s', featureStem, artifactTag);
+        harnessPath = fullfile(outputDir, sprintf('%s.slx', harnessName));
+        harnessInputsMat = fullfile(outputDir, sprintf('%s_HarnessInputs.mat', harnessName));
+
+        fprintf('  Converting: %s\n', featureFile);
+        feature2SignalEditor(char(featureFile), char(signalMat), inports);
+
+        fprintf('  Harness: %s\n', harnessPath);
+        createSignalEditorHarness(modelName, harnessName, signalMat, harnessInputsMat, harnessPath);
+
+        signalEditorFiles(end+1) = string(signalMat); %#ok<AGROW>
+        signalEditorHarnesses(end+1) = string(harnessPath); %#ok<AGROW>
+    end
+end
+
+function harnessPath = createSignalEditorHarness(modelName, harnessName, inputMat, harnessInputsMat, harnessPath)
+% Create a Signal Editor-based harness that loads the generated MAT file.
+    if exist(harnessPath, 'file')
+        delete(harnessPath);
+    end
+    if exist(harnessInputsMat, 'file')
+        delete(harnessInputsMat);
+    end
+
+    copyfile(inputMat, harnessInputsMat);
+    harnessInputsDir = fileparts(harnessInputsMat);
+    addpath(harnessInputsDir);
+    pathCleanup = onCleanup(@() rmpath(harnessInputsDir)); %#ok<NASGU>
+
+    if bdIsLoaded(harnessName)
+        close_system(harnessName, 0);
+    end
+
+    sltest.harness.create(modelName, ...
+        Name=harnessName, ...
+        Source='Signal Editor', ...
+        Sink='Outport', ...
+        SaveExternally=true, ...
+        HarnessPath=harnessPath, ...
+        LogOutputs=true, ...
+        CreateWithoutCompile=true);
+
+    load_system(harnessPath);
+    inputBlock = find_system(harnessName, 'MaskType', 'SignalEditor');
+    if ~isempty(inputBlock)
+        set_param(inputBlock{1}, 'FileName', char(harnessInputsMat));
+    else
+        warning('Signal Editor block not found in harness: %s', harnessName);
+    end
+
+    save_system(harnessName, harnessPath);
+    close_system(harnessName, 0);
 end

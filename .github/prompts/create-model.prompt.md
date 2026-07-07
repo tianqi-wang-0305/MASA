@@ -8,6 +8,8 @@ argument-hint: "<describe your requirements>"
 
 Transform natural language software requirements into a Simulink model skeleton. The AI parses your requirements, designs the architecture, and builds the model using `model_edit` — **no MATLAB scripting needed**.
 
+When the model has many inputs or outputs, prefer a taller subsystem layout: increase the wrapper height, spread ports vertically with consistent spacing, and keep the root interface blocks aligned to the wrapper port rows so the model stays readable and the interface count remains visually matched.
+
 ## Usage
 
 Describe what you want the model to do. **注意命名规范**：端口名必须加类型前缀（`u16`/`f32`/`b` 等），浮点用 `single` 不用 `double`。
@@ -55,6 +57,13 @@ Your Requirements (natural language)
         ▼
   5. Present → Structure + optimization suggestions
 ```
+
+## Layout Guidance
+
+- If inputs or outputs are dense, expand the subsystem window vertically instead of compressing ports.
+- Keep a stable vertical gap between interface ports so connection lines do not overlap.
+- Match the wrapper size to the number of interface ports and nested subsystems before arranging the diagram.
+- Prefer auto-layout that preserves left-to-right signal flow and top-to-bottom port alignment.
 
 ## Batch Generation
 

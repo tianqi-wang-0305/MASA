@@ -1,4 +1,4 @@
-function feature2SignalEditor(featureFile, outputMat)
+function feature2SignalEditor(featureFile, outputMat, inports)
 % feature2SignalEditor  将 Gherkin .feature 测试用例转为 Simulink.SimulationData.Dataset .mat 格式
 %   解析 .feature 文件中的 Given inputs 刺激描述，生成 Signal Editor 可加载的数据文件。
 %
@@ -31,6 +31,7 @@ function feature2SignalEditor(featureFile, outputMat)
     arguments
         featureFile (1,1) string
         outputMat (1,1) string = ""
+        inports struct = struct('name', {}, 'dataType', {}, 'dims', {}, 'sampleTime', {})
     end
 
     % 如果是目录，批量处理
@@ -91,11 +92,12 @@ function feature2SignalEditor(featureFile, outputMat)
 
             % 解析刺激表达式，生成 timeseries
             ts = parseStimulus(signalName, stimulusExpr, simTime);
+            ts = castTimeseriesToPortType(ts, signalName, inports);
 
             % 添加到 Dataset
             el = Simulink.SimulationData.Signal();
             el.Name = char(signalName);
-            el.BlockPath = struct('BlockPath', '');
+            el.BlockPath = Simulink.SimulationData.BlockPath('');
             el.PortType = 'inport';
             el.Values = ts;
             ds = ds.addElement(el);
@@ -302,6 +304,50 @@ function ts = parseConst(expr, simTime)
         value = 0;
     end
     ts = createStepTimeseries(value, value, 0, simTime);
+end
+
+function ts = castTimeseriesToPortType(ts, signalName, inports)
+% Cast Signal Editor samples to the declared port data type when available.
+    if isempty(inports)
+        return;
+    end
+
+    portType = findPortDataType(signalName, inports);
+    if strlength(portType) == 0
+        return;
+    end
+
+    ts.Data = castSamplesForType(portType, ts.Data);
+end
+
+function portType = findPortDataType(signalName, inports)
+    portType = "";
+    signalName = string(signalName);
+    for i = 1:numel(inports)
+        if string(inports(i).name) == signalName
+            portType = string(inports(i).dataType);
+            return;
+        end
+    end
+end
+
+function data = castSamplesForType(dataType, rawData)
+    dt = lower(string(dataType));
+    if contains(dt, 'uint16')
+        data = uint16(rawData);
+    elseif contains(dt, 'int16')
+        data = int16(rawData);
+    elseif contains(dt, 'uint8')
+        data = uint8(rawData);
+    elseif contains(dt, 'int8')
+        data = int8(rawData);
+    elseif contains(dt, 'boolean') || contains(dt, 'bool')
+        data = logical(rawData);
+    elseif contains(dt, 'single')
+        data = single(rawData);
+    else
+        data = double(rawData);
+    end
 end
 
 function ts = parseStep(expr, simTime)
