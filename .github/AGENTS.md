@@ -8,7 +8,6 @@ Type `/` in chat to see these commands:
 
 | Command | Description |
 |---------|-------------|
-| `/runAIPipeline` | Run full pipeline: SDD + Tests for a model |
 | `/generateModelTests` | Auto-generate Simulink Test .feature files |
 | `/buildModel` | Build any Simulink model from natural language requirements |
 | `/autoLayout` | Auto-layout model: align ports, arrange subsystems |
@@ -33,12 +32,6 @@ work/
 ├── matlab-mcp-core-server/       ← MATLAB MCP Core Server
 │
 ├── scripts/
-│   ├── runAIPipeline.m           ← Unified entry point
-│   ├── ai_sdd/src/               ← AI-Enhanced SDD generation
-│   │   ├── DdGeneration_AI.m
-│   │   ├── DdGeneration_ASPICE.m
-│   │   ├── analyzeModelDeepForSDD.m
-│   │   └── .headless/
 │   ├── review_gen/src/           ← Model review + naming/connection/hierarchy checks
 │   │   ├── reviewModel.m
 │   │   ├── check_naming_convention.m
