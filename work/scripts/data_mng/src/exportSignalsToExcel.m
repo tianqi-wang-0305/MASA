@@ -151,8 +151,7 @@ end
 
 function writeSignalsToExcel(ports, outputFile)
 % Write signal data to Excel
-    headers = {'PortName', 'Direction', 'DataType', 'Dimensions', 'SampleTime', ...
-               'ConnectedSignal', 'NamingStatus'};
+    headers = {'PortName', 'Direction', 'DataType', 'Dimensions', 'Description'};
     n = numel(ports);
     data = cell(n, numel(headers));
     for i = 1:n
@@ -161,10 +160,20 @@ function writeSignalsToExcel(ports, outputFile)
         data{i,2} = p.direction;
         data{i,3} = p.dataType;
         data{i,4} = p.dimensions;
-        data{i,5} = p.sampleTime;
-        data{i,6} = p.signalName;
-        data{i,7} = p.prefixStatus;
+        data{i,5} = getPortDescription(p.path);
     end
     outTable = cell2table(data, 'VariableNames', headers);
     writetable(outTable, outputFile, 'Sheet', 'Signals');
+end
+
+function descriptionText = getPortDescription(blockPath)
+% Read a port's description while preserving multiline text if present.
+    descriptionText = '';
+    try
+        descriptionText = get_param(blockPath, 'Description');
+        if isstring(descriptionText)
+            descriptionText = char(descriptionText);
+        end
+    catch
+    end
 end

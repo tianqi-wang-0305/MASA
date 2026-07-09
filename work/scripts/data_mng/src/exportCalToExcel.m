@@ -90,7 +90,14 @@ function result = exportCalToExcel(modelName, varargin)
             afterCal = cb.calName(5:end);
             cb.dataType = inferCalType(afterCal);
             cb.value = cb.calName;
-            cb.min = ''; cb.max = ''; cb.unit = ''; cb.description = '';
+            cb.min = ''; cb.max = ''; cb.unit = ''; cb.description = deriveCalDescription(afterCal);
+            try
+                blockDescription = get_param(cb.path, 'Description');
+                if ~isempty(blockDescription)
+                    cb.description = blockDescription;
+                end
+            catch
+            end
             calBlocks{end+1} = cb; %#ok<AGROW>
         end
     end
@@ -138,7 +145,7 @@ end
 %% ================== Excel Writer ==================
 
 function writeCalToExcel(calBlocks, outputFile)
-    headers = {'CalName', 'BlockName', 'BlockType', 'DataType', 'Path'};
+    headers = {'CalName', 'BlockName', 'BlockType', 'DataType', 'Description', 'Path'};
     n = numel(calBlocks);
     data = cell(n, numel(headers));
     for i = 1:n
@@ -147,7 +154,8 @@ function writeCalToExcel(calBlocks, outputFile)
         data{i,2} = c.blockName;
         data{i,3} = c.blockType;
         data{i,4} = c.dataType;
-        data{i,5} = c.path;
+        data{i,5} = c.description;
+        data{i,6} = c.path;
     end
     writetable(cell2table(data, 'VariableNames', headers), outputFile, 'Sheet', 'Calibration');
 end
@@ -177,12 +185,19 @@ function writeCalMFile(calBlocks, mFile, modelName)
         sc = getStorageClass(dt);
 
         fprintf(fid, '%%%% %s\n', calName);
-        fprintf(fid, '%% %s\n', desc);
+        if isfield(c, 'description') && ~isempty(c.description)
+            fprintf(fid, '%% %s\n', sanitizeCommentText(c.description));
+        else
+            fprintf(fid, '%% %s\n', desc);
+        end
         fprintf(fid, '%s = NoneSAR.Parameter;\n', calName);
         fprintf(fid, '%s.Value = 0;  %% TODO: set actual value\n', calName);
         fprintf(fid, '%s.DataType = ''%s'';\n', calName, dt);
         fprintf(fid, '%s.CoderInfo.StorageClass = ''Custom'';\n', calName);
         fprintf(fid, '%s.CoderInfo.CustomStorageClass = ''%s'';\n', calName, sc);
+        if isfield(c, 'description') && ~isempty(c.description)
+            fprintf(fid, '%s.Description = ''%s'';\n', calName, escapeQuotes(c.description));
+        end
         fprintf(fid, '\n');
     end
     fclose(fid);
@@ -224,4 +239,30 @@ function dt = typeMap(prefix)
     m('f32')='single'; m('f64')='double'; m('f16')='half';
     m('b')='boolean'; m('bool')='boolean';
     if isKey(m, prefix), dt = m(prefix); else, dt = 'Inherit: auto'; end
+end
+
+function desc = deriveCalDescription(afterCal)
+    desc = char(string(afterCal));
+    typePrefixes = {'s8','s16','s32','s64','u8','u16','u32','u64','f32','f64','f16','b','bool'};
+    for t = 1:numel(typePrefixes)
+        prefix = typePrefixes{t};
+        if startsWith(afterCal, prefix)
+            desc = strtrim(afterCal(length(prefix)+1:end));
+            break;
+        end
+    end
+    if isempty(desc)
+        desc = char(string(afterCal));
+    end
+end
+
+function text = sanitizeCommentText(text)
+    text = char(string(text));
+    text = strrep(text, sprintf('\r'), ' ');
+    text = strrep(text, sprintf('\n'), ' ');
+end
+
+function text = escapeQuotes(text)
+    text = char(string(text));
+    text = strrep(text, '''', '''''');
 end

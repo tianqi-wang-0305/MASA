@@ -50,7 +50,14 @@ function result = exportAllToExcel(modelName, varargin)
             try
                 info.value = get_param(blk,'Value');
             catch, info.value = ''; end
-            try info.description = get_param(blk,'Description'); catch, info.description=''; end
+            try
+                info.description = get_param(blk,'Description');
+            catch
+                info.description = '';
+            end
+            if isempty(info.description)
+                info.description = deriveCalDescription(calToken);
+            end
             try info.min = get_param(blk,'Min'); catch, info.min=''; end
             try info.max = get_param(blk,'Max'); catch, info.max=''; end
             try info.unit = get_param(blk,'Unit'); catch, info.unit=''; end
@@ -89,7 +96,7 @@ end
 
 function writeCombinedExcel(sigResult, calBlocks, outputFile, modelBase)
     % Sheet 1: Signals
-    headersS = {'PortName','Direction','DataType','Dimensions','SampleTime','ConnectedSignal','NamingStatus'};
+    headersS = {'PortName','Direction','DataType','Dimensions','Description'};
     nS = numel(sigResult.ports);
     dataS = cell(nS, numel(headersS));
     for i = 1:nS
@@ -98,13 +105,11 @@ function writeCombinedExcel(sigResult, calBlocks, outputFile, modelBase)
         dataS{i,2} = safeText(p.direction);
         dataS{i,3} = safeText(p.dataType);
         dataS{i,4} = safeText(p.dimensions);
-        dataS{i,5} = safeText(getFieldOrDefault(p, 'sampleTime', ''));
-        dataS{i,6} = safeText(getFieldOrDefault(p, 'signalName', ''));
-        dataS{i,7} = safeText(getFieldOrDefault(p, 'prefixStatus', ''));
+        dataS{i,5} = safeText(getPortDescription(p.path));
     end
     writetable(cell2table(dataS,'VariableNames',headersS), outputFile, 'Sheet', 'Signals');
     % Sheet 2: Calibration
-    headersC = {'Name','BlockType','DataType','Value','Min','Max','Unit'};
+    headersC = {'Name','BlockType','DataType','Value','Min','Max','Unit','Description'};
     nC = numel(calBlocks);
     dataC = cell(nC, numel(headersC));
     for i = 1:nC
@@ -116,6 +121,7 @@ function writeCombinedExcel(sigResult, calBlocks, outputFile, modelBase)
         dataC{i,5} = safeText(getFieldOrDefault(c, 'min', ''));
         dataC{i,6} = safeText(getFieldOrDefault(c, 'max', ''));
         dataC{i,7} = safeText(getFieldOrDefault(c, 'unit', ''));
+        dataC{i,8} = safeText(getFieldOrDefault(c, 'description', ''));
     end
     writetable(cell2table(dataC,'VariableNames',headersC), outputFile, 'Sheet', 'Calibration');
 end
@@ -321,6 +327,40 @@ function value = getFieldOrDefault(s, fieldName, defaultValue)
     else
         value = defaultValue;
     end
+end
+
+function descriptionText = getPortDescription(blockPath)
+% Read the block description so exported signals match the standalone signal exporter.
+    descriptionText = '';
+    try
+        descriptionText = get_param(blockPath, 'Description');
+        if isstring(descriptionText)
+            descriptionText = char(descriptionText);
+        end
+    catch
+    end
+end
+
+function desc = deriveCalDescription(calToken)
+% Derive a readable description from the calibration token when no block description exists.
+    afterCal = calToken(5:end);
+    desc = afterCal;
+    typePrefixes = {'s8','s16','s32','s64','u8','u16','u32','u64','f32','f64','f16','b','bool'};
+    for t = 1:numel(typePrefixes)
+        prefix = typePrefixes{t};
+        if startsWith(afterCal, prefix)
+            desc = strtrim(afterCal(length(prefix)+1:end));
+            break;
+        end
+    end
+    if isempty(desc)
+        desc = afterCal;
+    end
+end
+
+function text = escapeQuotes(text)
+    text = char(string(text));
+    text = strrep(text, '''', '''''');
 end
 
 function text = formatNumericScalar(value)
