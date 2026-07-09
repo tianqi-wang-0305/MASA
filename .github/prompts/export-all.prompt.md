@@ -29,9 +29,11 @@ result = exportAllToExcel('Model.slx');
 - Single Excel file with 2 sheets:
 
   **Sheet 1: Signals**
-  - PortName, Direction, DataType, Dimensions, SampleTime, ConnectedSignal, NamingStatus
+  - PortName, Direction, DataType, Dimensions, Description, ValueMeaning, Min, Max, Unit
 
   **Sheet 2: Calibration** (only blocks with `cal_` prefix)
-  - Name, BlockType, DataType, Value, Min, Max, Unit
+  - Name, BlockType, DataType, Value, Min, Max, Unit, Description
+
+- Preserve multiline signal descriptions and semantic notes when exporting to Excel.
 
 - File: `<Model>_signals_cal.xlsx`
