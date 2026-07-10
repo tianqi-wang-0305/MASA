@@ -32,7 +32,7 @@ satk_initialize
 
 ## 通过 Slash Commands 使用
 
-在 VS Code 聊天中输入 `/` 选择命令，或在 MATLAB 中直接调用脚本（共 16 个）。
+在 VS Code 聊天中输入 `/` 选择命令，或在 MATLAB 中直接调用脚本（共 15 个）。
 
 ### 模型搭建
 
@@ -83,7 +83,7 @@ satk_initialize
 masa/
 ├── .github/
 │   ├── AGENTS.md              ← Agent 总说明
-│   ├── prompts/               ← 14 个 Slash Command 定义
+│   ├── prompts/               ← 13 个 Slash Command 定义
 │   └── workflows/
 │       └── simulink-ci.yml.disabled  ← CI 流水线（已暂停）
 │
@@ -190,7 +190,6 @@ masa/
 | `f32` | single（浮点唯一选择） | `f32Temperature` |
 | `b`/`bool` | boolean | `bLockRequest` |
 | ~~`f64`~~ | ~~double~~ | ❌ **禁止使用** |
-
 ### 标定命名
 
 ```
@@ -240,7 +239,6 @@ Result: PASS
 ---
 
 ## 环境依赖
-
 | 组件 | 版本要求 | 用途 |
 |------|---------|------|
 | MATLAB | R2023a+ | 核心运行环境 |
