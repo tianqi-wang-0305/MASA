@@ -51,9 +51,11 @@ end
 
 % 第四章节：子系统导航
 systems = collectReportSystems(modelName);
+topLevelSystems = getChildSubsystems(systems, modelName);
 
 navSec = mlreportgen.report.Section;
 navSec.Title = "Subsystem Navigation";
+navSec.LinkTarget = "section_subsystem_navigation";
 append(navSec, mlreportgen.dom.Paragraph( ...
     "Click a subsystem name to jump to its corresponding report section."));
 
@@ -71,13 +73,13 @@ append(navTable, headerRow);
 
 for k = 1:numel(systems)
     sys = systems(k);
-    targetId = sectionTargetId(sys, modelName, k);
-    if sys == string(modelName)
+    targetId = sectionTargetId(sys.Path, modelName);
+    if sys.Path == string(modelName)
         linkText = "Model Overview";
-        descriptionText = getModelDescription(sys);
+        descriptionText = getModelDescription(sys.Path);
     else
-        linkText = get_param(sys, "Name");
-        descriptionText = getModelDescription(sys);
+        linkText = sys.Name;
+        descriptionText = getModelDescription(sys.Path);
     end
 
     row = mlreportgen.dom.TableRow;
@@ -94,27 +96,14 @@ append(rpt, mlreportgen.dom.PageBreak);
 % 页面 1：根模型概览
 sec = mlreportgen.report.Section;
 sec.Title = "Model Overview";
-sec.LinkTarget = sectionTargetId(modelName, modelName, 1);
+sec.LinkTarget = sectionTargetId(modelName, modelName);
 appendSectionDescription(sec, getModelDescription(modelName));
 appendDiagram(sec, get_param(modelName, "Handle"));
 append(rpt, sec);
 append(rpt, mlreportgen.dom.PageBreak);
 
-for k = 1:numel(systems)
-    sys = systems(k);
-
-    % 跳过根模型，根模型已单独出过一页
-    if sys == string(modelName)
-        continue;
-    end
-
-    sec = mlreportgen.report.Section;
-    sec.Title = get_param(sys, "Name");
-    sec.LinkTarget = sectionTargetId(sys, modelName, k);
-
-    appendSectionDescription(sec, getModelDescription(sys));
-    appendDiagram(sec, get_param(sys, "Handle"));
-
+for k = 1:numel(topLevelSystems)
+    sec = buildSubsystemSection(topLevelSystems(k), systems, modelName);
     append(rpt, sec);
     append(rpt, mlreportgen.dom.PageBreak);
 end
@@ -350,12 +339,12 @@ end
 end
 
 function filtered = selectSignalColumns(dataTable)
-preferred = ["PortName", "SignalName", "Direction", "DataType"];
+preferred = ["PortName", "SignalName", "Direction", "DataType", "Dimensions", "Description"];
 filtered = selectExistingColumns(dataTable, preferred);
 end
 
 function filtered = selectCalibrationColumns(dataTable)
-preferred = ["Name", "BlockType", "DataType", "Value"];
+preferred = ["Name", "BlockType", "DataType", "Value", "Min", "Max", "Unit", "Description"];
 filtered = selectExistingColumns(dataTable, preferred);
 end
 
@@ -419,56 +408,102 @@ if strlength(string(textValue)) > 0
 end
 end
 
-function targetId = sectionTargetId(sys, modelName, index)
-if sys == modelName
+function targetId = sectionTargetId(sys, modelName)
+if string(sys) == string(modelName)
     targetId = "section_model_overview";
 else
     sanitizedName = regexprep(string(sys), "[^A-Za-z0-9]", "_");
-    targetId = "section_" + sanitizedName + "_" + string(index);
+    targetId = "section_" + sanitizedName;
 end
 targetId = char(targetId);
 end
 
 function systems = collectReportSystems(modelName)
-allSystems = unique([string(modelName); string(find_system(modelName, ...
-    "LookUnderMasks","all", ...
-    "FollowLinks","on", ...
-    "Type","Block", ...
-    "BlockType","SubSystem"))], "stable");
+systems = struct("Path", {}, "Name", {}, "ParentPath", {}, "Depth", {});
+visited = strings(0, 1);
+visitSubsystemChildren(string(modelName), string(modelName), 0);
 
-keep = true(size(allSystems));
-for i = 1:numel(allSystems)
-    sys = allSystems(i);
-    if sys == string(modelName)
-        continue;
+    function visitSubsystemChildren(containerPath, parentPath, depth)
+        childPaths = find_system(containerPath, ...
+            "LookUnderMasks", "all", ...
+            "FollowLinks", "on", ...
+            "SearchDepth", 1, ...
+            "Type", "Block", ...
+            "BlockType", "SubSystem");
+        childPaths = string(childPaths);
+        childPaths = childPaths(childPaths ~= string(containerPath));
+        childPaths = filterRenderableSubsystems(childPaths);
+        childPaths = sortSubsystemsByDiagramOrder(childPaths);
+
+        for i = 1:numel(childPaths)
+            childPath = childPaths(i);
+            if any(visited == childPath)
+                continue;
+            end
+
+            visited(end + 1, 1) = childPath; %#ok<AGROW>
+            childInfo = struct();
+            childInfo.Path = childPath;
+            childInfo.Name = string(get_param(childPath, "Name"));
+            childInfo.ParentPath = parentPath;
+            childInfo.Depth = depth + 1;
+            systems(end + 1, 1) = childInfo; %#ok<AGROW>
+
+            visitSubsystemChildren(childPath, childPath, depth + 1);
+        end
     end
 
-    try
-        sysName = string(get_param(sys, "Name"));
-    catch
-        sysName = sys;
+    function filteredPaths = filterRenderableSubsystems(candidatePaths)
+        keep = true(size(candidatePaths));
+        for i = 1:numel(candidatePaths)
+            sys = candidatePaths(i);
+
+            try
+                sysName = string(get_param(sys, "Name"));
+            catch
+                sysName = sys;
+            end
+
+            try
+                maskType = string(get_param(sys, "MaskType"));
+            catch
+                maskType = "";
+            end
+
+            try
+                blockType = string(get_param(sys, "BlockType"));
+            catch
+                blockType = "";
+            end
+
+            if contains(sysName, "Enumerated Constant", "IgnoreCase", true) || ...
+               contains(maskType, "Enumerated Constant", "IgnoreCase", true) || ...
+               strcmpi(blockType, "EnumeratedConstant")
+                keep(i) = false;
+            end
+        end
+
+        filteredPaths = candidatePaths(keep);
     end
 
-    try
-        maskType = string(get_param(sys, "MaskType"));
-    catch
-        maskType = "";
-    end
+    function orderedPaths = sortSubsystemsByDiagramOrder(candidatePaths)
+        if numel(candidatePaths) < 2
+            orderedPaths = candidatePaths;
+            return;
+        end
 
-    try
-        blockType = string(get_param(sys, "BlockType"));
-    catch
-        blockType = "";
-    end
+        positions = zeros(numel(candidatePaths), 4);
+        for i = 1:numel(candidatePaths)
+            try
+                positions(i, :) = double(get_param(candidatePaths(i), "Position"));
+            catch
+                positions(i, :) = [inf, inf, inf, inf];
+            end
+        end
 
-    if contains(sysName, "Enumerated Constant", "IgnoreCase", true) || ...
-       contains(maskType, "Enumerated Constant", "IgnoreCase", true) || ...
-       strcmpi(blockType, "EnumeratedConstant")
-        keep(i) = false;
+        [~, order] = sortrows(positions(:, [2, 1]));
+        orderedPaths = candidatePaths(order);
     end
-end
-
-systems = allSystems(keep);
 end
 
 function descriptionText = getModelDescription(sys)
@@ -511,6 +546,61 @@ catch diagramError
     append(sec, mlreportgen.dom.Paragraph( ...
         "Diagram snapshot unavailable for this level: " + string(diagramError.message)));
 end
+end
+
+function appendSectionNavigation(sec, currentPath, parentPath, modelName)
+currentPath = string(currentPath);
+parentPath = string(parentPath);
+modelName = string(modelName);
+
+navParagraph = mlreportgen.dom.Paragraph;
+
+if currentPath == modelName
+    append(navParagraph, mlreportgen.dom.InternalLink("section_subsystem_navigation", "Back to subsystem navigation"));
+    append(sec, navParagraph);
+    return;
+end
+
+append(navParagraph, mlreportgen.dom.Text("Navigation: "));
+
+if parentPath == modelName
+    parentTarget = sectionTargetId(modelName, modelName);
+    parentLabel = "Model Overview";
+    append(navParagraph, mlreportgen.dom.InternalLink(parentTarget, "Back to model overview"));
+    append(navParagraph, mlreportgen.dom.Text(" | "));
+    append(navParagraph, mlreportgen.dom.InternalLink("section_subsystem_navigation", "Back to subsystem navigation"));
+else
+    parentTarget = sectionTargetId(parentPath, modelName);
+    append(navParagraph, mlreportgen.dom.InternalLink(parentTarget, "Back to previous level"));
+    append(navParagraph, mlreportgen.dom.Text(" | "));
+    append(navParagraph, mlreportgen.dom.InternalLink(sectionTargetId(modelName, modelName), "Back to model overview"));
+end
+append(sec, navParagraph);
+end
+
+function section = buildSubsystemSection(sys, systems, modelName)
+section = mlreportgen.report.Section;
+section.Title = sys.Name;
+section.LinkTarget = sectionTargetId(sys.Path, modelName);
+
+appendSectionDescription(section, getModelDescription(sys.Path));
+appendDiagram(section, get_param(sys.Path, "Handle"));
+appendSectionNavigation(section, sys.Path, sys.ParentPath, modelName);
+
+childSystems = getChildSubsystems(systems, sys.Path);
+for i = 1:numel(childSystems)
+    append(section, buildSubsystemSection(childSystems(i), systems, modelName));
+end
+end
+
+function childSystems = getChildSubsystems(systems, parentPath)
+if isempty(systems)
+    childSystems = systems;
+    return;
+end
+
+parentPaths = string({systems.ParentPath});
+childSystems = systems(parentPaths == string(parentPath));
 end
 
 function dependencyFiles = promptForDependencyFiles(rootDir)
