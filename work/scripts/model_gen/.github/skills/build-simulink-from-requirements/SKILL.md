@@ -198,21 +198,40 @@ Constant: 'Threshold'        → 标定缺少 cal_ 前缀
 
 ### 在 model_edit 中实现
 
-创建端口时直接设置类型：
-
+**🚨 端口必须设置 Description + OutMin/OutMax：**
 ```json
-// 正确 ✅ 命名 + 类型
+// 正确 ✅ 命名 + 类型 + 描述 + 最值
 {"op": "add_block", "type": "Inport", "name": "u16VehicleSpeed", "ref": "p1",
- "params": {"OutDataTypeStr": "uint16"}},
+ "params": {"OutDataTypeStr": "uint16",
+            "Description": "车速(km/h), 范围0-300",
+            "OutMin": "0",
+            "OutMax": "300"}},
 {"op": "add_block", "type": "Inport", "name": "f32Temperature", "ref": "p2",
- "params": {"OutDataTypeStr": "single"}},
+ "params": {"OutDataTypeStr": "single",
+            "Description": "介质温度(℃)",
+            "OutMin": "-40",
+            "OutMax": "150"}},
 {"op": "add_block", "type": "Inport", "name": "bLockRequest", "ref": "p3",
- "params": {"OutDataTypeStr": "boolean"}}
+ "params": {"OutDataTypeStr": "boolean",
+            "Description": "上锁请求(0=解锁/1=上锁)",
+            "OutMin": "0",
+            "OutMax": "1"}}
 
 // 标定 Constant 块 — Value 使用 cal_ 变量引用
 {"op": "add_block", "type": "Constant", "name": "SpeedThreshold", "ref": "c1",
  "params": {"Value": "cal_u16Threshold", "OutDataTypeStr": "uint16"}}
 ```
+
+每个端口必须设置以下属性：
+
+| 属性 | 参数名 | 必须？ | 设置方式 |
+|------|--------|--------|---------|
+| 数据类型 | `OutDataTypeStr` | ✅ | `params` 中设置 |
+| 描述 | `Description` | ✅ | 中文描述含义/单位/枚举值 |
+| 最小值 | `OutMin` | ✅ | 物理意义最小值（字符串） |
+| 最大值 | `OutMax` | ✅ | 物理意义最大值（字符串） |
+
+> **注意**：Inport/Outport 的最小值/最大值参数名为 `OutMin`/`OutMax`（不是 `Min`/`Max`）。Constant/Gain 等块的最小值/最大值参数名为 `Min`/`Max`。
 
 ## Step 2: Design Architecture
 
@@ -338,16 +357,132 @@ After the structure is built, configure block parameters if the requirements spe
  "params": {"Solver": "FixedStepDiscrete", "FixedStep": "0.01"}}
 ```
 
-## Step 4: Verify
+## Step 4: Port Completeness & Wiring Integrity (Critical)
 
-After ALL model_edit calls are complete:
+**🚨 每完成一步连线，必须立即验证，不能留到最后统一检查。**
+
+### 4.1 端口完整性检查准则
+
+在连线之前和执行过程中，用以下清单逐项验证：
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ 端口完整性清单（每一条都必须满足）：                                 │
+│                                                                     │
+│ □ 内部 Inport 数量 = 该子系统需要从外部接收的信号数                  │
+│ □ 内部 Outport 数量 = 该子系统需要输出到外部的信号数                 │
+│ □ 每个 Inport 块至少有 1 条出线（连到下游逻辑块）                   │
+│ □ 每个 Outport 块至少有 1 条入线（来自上游逻辑块）                   │
+│ □ 逻辑块的每个输入端口(u1, u2, ...)都有一条信号线                   │
+│ □ 逻辑块的所有输出端口至少连接到 1 个目标                           │
+│ □ model_check 不报 "unconnected port" 错误                          │
+│ □ 没有孤立的块（既无入线也无出线的块）                              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.2 子系统间信号对应规则
+
+```
+子系统 A 的 Outport ⇔ 子系统 B 的 Inport
+
+检查规则:
+  1. 子系统 A 的每个 Outport 名称，必须有对应的信号线
+     连接到子系统 B 的对应 Inport
+  2. 两个子系统之间不能有「A 的 Outport 多但 B 的 Inport 少」
+     或相反的情况出现
+  3. 每个功能子系统的 Inport 必须都有 SignalAcquisition
+     输出的对应信号
+  4. OutputArbitration 的 Inport 必须覆盖所有功能子系统的输出
+```
+
+### 4.3 逐层连线与即时验证流程
+
+每完成一层连线后，立即执行：
+
+```matlab
+% 1. 用 model_read 查看当前 scope 的完整结构
+readBack = model_read(modelName, scope, "1");
+if contains(readBack, "unconnected")
+    error("未连接的端口: 请修复后再继续")
+end
+
+% 2. 用 model_check 验证结构
+checkResult = model_check(modelName, scope, ["all"]);
+% 若有 error 级别问题，立即修复
+
+% 3. 发现 missing line 的处理：
+%    - 找到哪个块的哪个端口没有连线
+%    - 分析该端口应该连接什么信号
+%    - 用 model_edit connect 补上
+%    - 重新 model_check 确认修复
+```
+
+### 4.4 典型错误及修复
+
+| 错误类型 | 现象 | 修复方法 |
+|---------|------|---------|
+| 悬空 Inport | Inport 块无出线 | 添加从 Inport 到下游块的连线 |
+| 悬空 Outport | Outport 块无入线 | 添加上游块到 Outport 的连线 |
+| 块输入未连 | Gain/Sum 等块的 u1 或 u2 未连 | 找到对应信号来源并连线 |
+| 端口号不匹配 | 子系统间 I/O 数量不一致 | 检查两端的端口定义，补全缺失端口 |
+| 孤立块 | 块既无入线也无出线 | 确认该块是否多余，若需要则补全连线 |
+
+## Step 5: Verify (最终验证)
+
+After ALL model_edit calls AND all connectivity checks are complete:
 
 1. **Read back**: `model_read("Model", "root", "1")` to verify structure
 2. **Check**: `model_check("Model", "root", "["all"])` to find issues
 3. **Fix**: Any `error`-severity unconnected ports or dangling lines
-4. **Open**: `open_system("Model")` so the user can see the result
+4. **Final confirmation**: `model_check` 不再报任何 error-severity 问题
 
-## Step 5: Present to User
+## Step 6: Auto-Layout (端口和连线对齐)
+
+调用 `autoLayoutModel` 进行自动布局，确保模型可读性：
+
+```matlab
+% 递归布局所有层级（Inport靠左、Outport靠右、水平排列子系统）
+autoLayoutModel('ModelName');
+```
+
+### 布局规则
+
+| 规则 | 详细说明 |
+|------|---------|
+| **Inport 对齐** | 所有 Inport 块靠左边缘对齐，**端口垂直均匀分布**。同一层级有 N 个 Inport 时，间距 = 层级高度 / (N+1) |
+| **Outport 对齐** | 所有 Outport 块靠右边缘对齐，端口垂直均匀分布。Outport 的位置行必须与 Inport **保持行对齐** |
+| **子系统排布** | 子系统在中间区域从左到右水平排列。同层级的子系统保持**相同的高度和宽度** |
+| **信号流方向** | 严格保持 **左→右**：Inports(左) → SubSystems(中) → Outports(右) |
+| **连线最小交叉** | 信号线应避免交叉。远距离跨接使用 `From`/`Goto` 替代直接连线 |
+| **层级传播** | 以上规则**递归应用到所有子系统层级**，每个子系统的内部布局也遵循上述规则 |
+| **子系统高度自适应** | 当子系统有多个 I/O 时，子系统高度应适应端口数量，确保端口不挤压在一起 |
+
+### 布局时机
+
+```
+Phase 3 (添加端口)  → 初步位置摆放
+Phase 7 (连线完成)  → 再次布局，对齐端口行
+Phase 8 (填充逻辑)  → 对每个子系统内部布局
+Phase 9 (最终验证)  → 全局 autoLayoutModel 收尾
+```
+
+### 布局后验证
+
+```matlab
+% 验证对齐性
+ports = find_system(modelName, 'SearchDepth', 1, 'BlockType', 'Inport');
+positions = zeros(numel(ports), 4);
+for i = 1:numel(ports)
+    positions(i,:) = get_param(ports{i}, 'Position');
+end
+% Inport 的左边 X 坐标应一致
+assert(all(positions(:,1) == positions(1,1)), 'Inport 左对齐失败')
+
+% model_check 确认布局后无新错误
+model_check(modelName, "root", ["all"])
+```
+
+## Step 7: Present to User
 
 Provide a summary in this format:
 
@@ -387,3 +522,13 @@ Top Level
 5. **Keep it simple**: Build a skeleton that works - the user will optimize layout, add detail, and refine parameters. Don't try to build a production-ready model in one shot.
 
 6. **Model config**: After building, set solver type and step size appropriate for the application (FixedStepDiscrete for discrete controllers, VariableStep for plant models).
+
+7. **🚨 布局对齐要求（必须遵守）**：每次 `model_edit` 调用后必须调用 `autoLayoutModel` 布局。Inport 必须左对齐且端口间距均匀，Outport 必须右对齐且与 Inport 保持行对齐。违反此规则的 PR/review 将被驳回。每完成一个子系统内部填充后立即对该子系统调用布局，不要留到最后统一布局。
+
+8. **层级布局顺序**：先布局最内层子系统的内部，再逐层向外。内层布局完成后，外层自动布局会受益于内层已确定的端口位置，避免跨层级连线交叉。
+
+9. **🚨 端口完整性是硬性要求**：`model_check` 报 "unconnected port" 时必须**立即停下来修复**，不能跳过或忽略。所有子系统 I/O 必须与它们的内部逻辑块完全对应。一个端口未连 = 模型不完整。
+
+10. **边建边验**：不要等全部 Phase 完成后再验证。每连 3～5 条线 → 跑一次 `model_read` → 确认无悬空 → 继续。这样可以尽早发现端口数量或名称不匹配的问题。
+
+11. **子系统间接口契约**：两个子系统之间的连线数量必须严格等于发送方 Outport 数 = 接收方 Inport 数。如果出现不匹配，说明需求分析或子系统划分有误，应返工 Phase 1～2 修正设计。

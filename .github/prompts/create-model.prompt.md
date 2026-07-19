@@ -65,12 +65,32 @@ model_edit(create, modelName)
 Configure: Solver=FixedStepDiscrete, FixedStep=0.01, StopTime=100
 ```
 
-### Phase 3: Add root Inport/Outport blocks
+### Phase 3: Add root Inport/Outport blocks (含 Description + OutMin/OutMax)
 ```
 model_edit(add_block, Inport)   × N   // ref: p1, p2, ...
 model_edit(add_block, Outport)  × M   // ref: q1, q2, ...
 Names must follow: {type}{Name}       // e.g. u16VehicleSpeed
 Data types: single for float, never double
+```
+
+**每个端口必须设置以下属性：**
+
+| 属性 | 参数名 | 必须？ | 说明 |
+|------|--------|--------|------|
+| 数据类型 | `OutDataTypeStr` | ✅ | `single`, `uint8`, `uint16`, `boolean` |
+| 描述 | `Description` | ✅ | 中文描述该信号的含义、单位、枚举值。如 `"车速(km/h), 范围0-300"` |
+| 最小值 | `OutMin` | ✅ | 物理意义的最小值。如 `'0'` |
+| 最大值 | `OutMax` | ✅ | 物理意义的最大值。如 `'300'` |
+
+**在 model_edit 中实现：**
+```json
+{"op": "add_block", "type": "Inport", "name": "u16VehicleSpeed", "ref": "p1",
+ "params": {
+   "OutDataTypeStr": "uint16",
+   "Description": "车速(km/h), 范围0-300",
+   "OutMin": "0",
+   "OutMax": "300"
+ }}
 ```
 
 ### Phase 4: Create MainSubsystem wrapper + internal subsystems
@@ -85,27 +105,101 @@ model_edit(create_subsystem, "OutputArbitration")  // output merge
 Each subsystem must have its own Inport/Outport blocks (R2025a creates empty subsystems).
 Use `add_block('built-in/Inport', ...)` and `add_block('built-in/Outport', ...)` inside each.
 
+### Phase 5.5: I/O Port Completeness Check (Critical — 端口对应性)
+**在连线之前，必须验证每个子系统的端口完整性：**
+
+```
+检查准则（每一条都必须满足）：
+┌────────────────────────────────────────────────────────────────────┐
+│ 1. 端口-逻辑对应：内部 Inport 的「名称和数量」必须与其下游逻辑      │
+│    块实际需要的输入信号完全匹配。不能多，不能少。                  │
+│                                                                    │
+│ 2. 内部 Inport 数量 = 该子系统需要从外部接收的信号数               │
+│    内部 Outport 数量 = 该子系统需要输出到外部的信号数              │
+│                                                                    │
+│ 3. 逐个检查每个模块：该模块的每个输入端口(u1, u2, ...)             │
+│    都有一条信号线连接到一个 Inport 或上游模块的输出                │
+│                                                                    │
+│ 4. 无悬空端口：每个 Inport 至少有 1 条出线连到下游块               │
+│    每个 Outport 至少有 1 条入线来自上游块                          │
+│                                                                    │
+│ 5. model_check 不能报任何 "unconnected port" 错误                  │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+在执行 Phase 6～8 的每一步连线后，立即用 `model_read` 或 `model_check` 验证该子系统内是否有悬空端口。发现丢失连线立即补上。
+
 ### Phase 6: Wire top level
 ```
 Root Inports  → MainSubsystem (port-to-port)
 MainSubsystem → Root Outports (port-to-port)
 In R2025a, use add_line(modelName, 'InportName/1', 'MainSubsystem/1', 'autorouting','on')
 ```
+**连线后验证**：`model_check` 确认顶层无悬空端口。
 
 ### Phase 7: Wire inside MainSubsystem
 ```
 MainSubsystem Inports → SignalAcquisition → functional subsystems → OutputArbitration
 OutputArbitration → MainSubsystem Outports
 ```
+**连线顺序与验证（必须逐步验证）：**
+```
+Step 7.1: MainSubsystem Inports → SignalAcquisition Inports
+          → model_read 确认所有内部 Inport 都有入线
+Step 7.2: SignalAcquisition Outports → 各功能子系统的 Inports
+          → model_read 确认 SignalAcquisition 每个出线端口都连到目标
+Step 7.3: 各功能子系统 Outports → OutputArbitration Inports
+          → model_read 确认 OutputArbitration 的 Inports 都有来源
+Step 7.4: OutputArbitration Outports → MainSubsystem Outports
+          → model_read 确认 MainSubsystem 的 Outports 都有来源
+```
 
 ### Phase 8: Populate functional logic
 Each functional subsystem gets basic blocks (Gain, Sum, Logic, RelationalOperator, etc.)
 based on requirements analysis. Follow "禁止库模块" rule from SKILL.md.
 
-### Phase 9: Verify and present
+**填充规则（必须遵守）：**
 ```
-model_check → validate structure
-model_read  → present summary
+1. 先定义该子系统的全部内部 Inport/Outport（Phase 5 已完成）
+2. 添加内部逻辑块
+3. 逐个连线：Inport → 逻辑块1 → 逻辑块2 → ... → Outport
+4. 每连 3～5 条线后，运行 model_read 检查当前子系统，确认
+   没有出现未连接的端口（unconnected port）
+5. 如果 model_check 报 unconnected port 错误：
+   a. 立即停止添加新块
+   b. 找出哪个端口未连接
+   c. 补上正确的信号线
+   d. 重新 model_check 确认修复
+6. 重复直到该子系统内所有块的全部端口都连接到信号
+```
+
+### Phase 9: Verify
+```
+model_check → validate structure (fix any error-severity issues)
+model_read  → read back structure
+```
+
+### Phase 10: Auto-Layout (Critical — 端口和连线对齐)
+调用 `work/scripts/layout_gen/src/autoLayoutModel.m` 进行自动布局：
+
+```matlab
+autoLayoutModel('ModelName');  % 递归布局所有层级
+```
+
+布局规则：
+| 规则 | 说明 |
+|------|------|
+| **Inport 对齐** | 所有 Inport 靠左对齐，端口垂直均匀分布（端口间距一致） |
+| **Outport 对齐** | 所有 Outport 靠右对齐，端口垂直均匀分布，与 Inport 保持行对齐 |
+| **信号流方向** | 信号从左到右：Inports(左) → SubSystems(中) → Outports(右) |
+| **子系统排布** | 子系统在中间区域水平排列，同层子系统保持相同高度/宽度 |
+| **连线不交叉** | 避免信号线交叉，用 `From`/`Goto` 替代远距离跨接 |
+| **层级传播** | 上述规则递归应用到所有子系统层级 |
+
+布局后重新验证：
+```matlab
+model_check → 确认无新错误
+model_read  → 确认布局正确
 ```
 
 ## Prerequisites
