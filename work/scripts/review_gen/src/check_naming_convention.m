@@ -106,12 +106,21 @@ for i = 1:numel(blocks)
             try
                 switch char(blockType)
                     case 'Constant'
-                        val = get_param(blockPath, 'Value');
-                        hasNumericValue = ~isempty(str2double(val)) || ~isnan(str2double(val));
-                        % Also check if it looks like a variable reference (no cal_ prefix)
-                        if ~hasNumericValue && ~startsWith(strtrim(val), 'cal_')
-                            % It's a variable name but doesn't follow cal_ convention
-                            hasNumericValue = true; % Flag it for suggestion
+                        val = strtrim(get_param(blockPath, 'Value'));
+                        % If already follows cal_ convention, skip warning
+                        if startsWith(val, 'cal_')
+                            % Check if cal_ is followed by valid type prefix
+                            rest = val(5:end);
+                            if ~isempty(rest) && ~isempty(findMatchingPrefix(rest, typePrefixes))
+                                stats.calNamingOk = stats.calNamingOk + 1;
+                                continue; % Correct cal_ naming, skip violation
+                            end
+                        end
+                        % Numeric literal or non-cal variable name
+                        numVal = str2double(val);
+                        hasNumericValue = ~isnan(numVal);
+                        if ~hasNumericValue && ~startsWith(val, 'cal_')
+                            hasNumericValue = true; % Variable name without cal_
                         end
                     case 'Gain'
                         val = get_param(blockPath, 'Gain');

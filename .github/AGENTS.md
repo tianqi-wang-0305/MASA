@@ -2,9 +2,16 @@
 
 This project provides a comprehensive AI-powered automation framework for Simulink-based application layer software development.
 
-## Available Slash Commands
+## Skills (auto-loaded by AI)
 
-Type `/` in chat to see these commands:
+| Skill | Path | When Used |
+|-------|------|-----------|
+| Build Simulink from Requirements | `work/scripts/model_gen/.github/skills/build-simulink-from-requirements/SKILL.md` | Building models from natural language |
+| Review Logic Consistency | `work/scripts/review_gen/.github/skills/review-logic-consistency/SKILL.md` | Comparing requirements vs model behavior |
+| Review with Fix Suggestions | `work/scripts/review_gen/.github/skills/review-with-fix-suggestions/SKILL.md` | Generating fix recommendations |
+| Signal Editor Test Generation | `work/scripts/test_gen/.github/skills/signal-editor-test-generation/SKILL.md` | Generating Simulink Test cases |
+
+## Slash Commands
 
 | Command | Description |
 |---------|-------------|

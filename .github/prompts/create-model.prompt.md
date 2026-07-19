@@ -7,13 +7,38 @@ argument-hint: "<describe your requirements>"
 
 # Build Simulink Model
 
-Transform natural language software requirements into a Simulink model skeleton. The AI parses your requirements, designs the architecture, and builds the model using `model_edit` — **no MATLAB scripting needed**.
+> **🚨 关键**：执行此命令前，AI 必须**先读取 skill 文件** `work/scripts/model_gen/.github/skills/build-simulink-from-requirements/SKILL.md`，该文件包含：
+> - 详细的端口/标定命名规范（`{type}{Name}` / `cal_{type}{Name}`）
+> - 禁止使用 double，所有浮点用 single
+> - 禁止使用库模块（PID Controller 等），必须用基本模块组合
+> - 完整的模型架构和要求
 
-When the model has many inputs or outputs, prefer a taller subsystem layout: increase the wrapper height, spread ports vertically with consistent spacing, and keep the root interface blocks aligned to the wrapper port rows so the model stays readable and the interface count remains visually matched.
+Transform natural language software requirements into a Simulink model skeleton. **First read the SKILL.md** for naming/data type rules, then build with `model_edit`.
+
+## 模型架构要求
+
+生成的模型必须遵循以下架构：
+
+```
+ModelName
+├── Inports:  u16VehicleSpeed, f32Temperature, bEnable  ({type}{Name} 规范)
+├── Outports: u8MotorCmd, s16Position                   ({type}{Name} 规范)
+│
+└── SubSystem: MainSubsystem (wrapper, 包含所有逻辑)
+    ├── Inports  (与顶层一一对应)
+    ├── Outports (与顶层一一对应)
+    │
+    ├── SubSystem: SignalAcquisition    ← 信号调理/类型转换
+    ├── SubSystem: {功能模块1}          ← 根据需求创建
+    ├── SubSystem: {功能模块2}          ← 根据需求创建
+    ├── SubSystem: OutputArbitration    ← 输出仲裁/合并
+    │
+    └── 内部连线: In → Acquisition → 功能模块 → Arbitration → Out
+```
 
 ## Usage
 
-Describe what you want the model to do. **注意命名规范**：端口名必须加类型前缀（`u16`/`f32`/`b` 等），浮点用 `single` 不用 `double`。
+Describe what you want the model to do.
 
 ```
 /buildModel A PID speed controller with:
@@ -29,80 +54,62 @@ Describe what you want the model to do. **注意命名规范**：端口名必须
   - Steps: low-pass filter → gain scaling → saturation clamp
 ```
 
-```
-/buildModel A mode selector with:
-  - Inputs: mode(0/1/2), A, B, C
-  - Output: selected
-  - Logic: mode 0=pass A, mode 1=pass B, mode 2=pass C
-```
+## Build Steps (must follow exactly)
 
-## How It Works
+### Phase 1: Read SKILL.md
+Read `work/scripts/model_gen/.github/skills/build-simulink-from-requirements/SKILL.md` for all naming and data type rules.
 
-The AI agent uses MCP tools to build the model dynamically:
-
+### Phase 2: Create root model
 ```
-Your Requirements (natural language)
-        │
-        ▼
-  1. Parse Requirements → Identify inputs, outputs, logic
-        │
-        ▼
-  2. Design Architecture → Choose block types, plan hierarchy
-        │
-        ▼
-  3. Build with model_edit → Create model, add blocks, wire
-        │
-        ▼
-  4. Verify → model_read + model_check
-        │
-        ▼
-  5. Present → Structure + optimization suggestions
+model_edit(create, modelName)
+Configure: Solver=FixedStepDiscrete, FixedStep=0.01, StopTime=100
 ```
 
-## Layout Guidance
-
-- If inputs or outputs are dense, expand the subsystem window vertically instead of compressing ports.
-- Keep a stable vertical gap between interface ports so connection lines do not overlap.
-- Match the wrapper size to the number of interface ports and nested subsystems before arranging the diagram.
-- Prefer auto-layout that preserves left-to-right signal flow and top-to-bottom port alignment.
-
-## Block Naming Convention
-
-Use `built-in/{BlockType}` for all add_block calls (NOT `simulink/Sources/In1`):
-
-| Block | Correct MCP type |
-|-------|-----------------|
-| Inport | `Inport` |
-| Outport | `Outport` |
-| SubSystem | `SubSystem` |
-| Constant | `Constant` |
-| Logic Gate | `Logic` |
-| Relational Operator | `RelationalOperator` |
-| Unit Delay | `UnitDelay` |
-| Gain | `Gain` |
-| Sum | `Sum` |
-| Saturation | `Saturation` |
-
-## How to Build with MCP (step by step)
-
-When the user calls `/buildModel`, use the Simulink Agentic Toolkit MCP tools:
-
+### Phase 3: Add root Inport/Outport blocks
 ```
-Step 1: model_edit(create, model)       → new_system + set solver
-Step 2: model_edit(add_block, Inport)   → create each input port
-Step 3: model_edit(add_block, Outport)  → create each output port
-Step 4: model_edit(create_subsystem)    → create wrapper + internal subsystems
-Step 5: model_edit(connect)             → wire ports → subsystems → outputs
-Step 6: model_edit(configure)           → set block parameters
-Step 7: model_check                     → validate structure
-Step 8: model_read                      → present summary to user
+model_edit(add_block, Inport)   × N   // ref: p1, p2, ...
+model_edit(add_block, Outport)  × M   // ref: q1, q2, ...
+Names must follow: {type}{Name}       // e.g. u16VehicleSpeed
+Data types: single for float, never double
 ```
 
-Use the `modelName` returned from model creation as the `scope` for subsequent calls.
-Use sequential `ref` names (`p1, p2, ...`, `b1, b2, ...`, `s1, s2, ...`) to refer to blocks between operations.
-Set `layout_mode: 'incremental'` for intermediate steps, `'full'` as final cleanup.
+### Phase 4: Create MainSubsystem wrapper + internal subsystems
+```
+model_edit(create_subsystem, "MainSubsystem")   // wrapper
+model_edit(create_subsystem, "SignalAcquisition")  // inside wrapper
+model_edit(create_subsystem, "...")              // functional subsystems
+model_edit(create_subsystem, "OutputArbitration")  // output merge
+```
+
+### Phase 5: Add Inport/Outport inside each subsystem
+Each subsystem must have its own Inport/Outport blocks (R2025a creates empty subsystems).
+Use `add_block('built-in/Inport', ...)` and `add_block('built-in/Outport', ...)` inside each.
+
+### Phase 6: Wire top level
+```
+Root Inports  → MainSubsystem (port-to-port)
+MainSubsystem → Root Outports (port-to-port)
+In R2025a, use add_line(modelName, 'InportName/1', 'MainSubsystem/1', 'autorouting','on')
+```
+
+### Phase 7: Wire inside MainSubsystem
+```
+MainSubsystem Inports → SignalAcquisition → functional subsystems → OutputArbitration
+OutputArbitration → MainSubsystem Outports
+```
+
+### Phase 8: Populate functional logic
+Each functional subsystem gets basic blocks (Gain, Sum, Logic, RelationalOperator, etc.)
+based on requirements analysis. Follow "禁止库模块" rule from SKILL.md.
+
+### Phase 9: Verify and present
+```
+model_check → validate structure
+model_read  → present summary
+```
 
 ## Prerequisites
 
 - MATLAB running with `satk_initialize` executed
 - Simulink Agentic Toolkit configured
+- **重要**：R2025a 中 SubSystem 无默认 In1/Out1，必须手动添加
