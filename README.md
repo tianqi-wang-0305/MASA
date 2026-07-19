@@ -32,13 +32,13 @@ satk_initialize
 
 ## 通过 Slash Commands 使用
 
-在 VS Code 聊天中输入 `/` 选择命令，或在 MATLAB 中直接调用脚本（共 15 个）。
+在 VS Code 聊天中输入 `/` 选择命令，或在 MATLAB 中直接调用脚本。
 
 ### 模型搭建
 
-| Command | 功能 | 入口 |
-|---------|------|------|
-| `/buildModel` | 从自然语言需求搭建 Simulink 模型骨架（仅用 Gain/Sum/Integrator 等基本模块） | AI Agent + model_edit |
+| Command | 功能 | 入口/方法 |
+|---------|------|-----------|
+| `/buildModel` | **主入口**: 从自然语言需求动态搭建 Simulink 模型骨架（AI 自动用 `model_edit` 构建，无需预写脚本） | AI Agent + SKILL.md |
 | `/autoLayout` | 自动布局：对齐端口、层级排列子系统 | `autoLayoutModel.m` |
 | `/setPortTypes` | 按信号名前缀自动设置端口数据类型 | `autoSetPortDataTypes.m` |
 
@@ -75,6 +75,21 @@ satk_initialize
 |---------|------|------|
 | `DdGeneration.m`（已有）| 详细设计 PDF | 用户已有的脚本 |
 
+### 通用脚本
+
+| 脚本 | 功能 |
+|------|------|
+| `buildModelFromSpec.m` | 通用模型构建器：从结构化 Spec 自动生成任意 Simulink 模型（替代为每个新模型手写脚本） |
+
+---
+
+## 模型搭建方式对比
+
+| 方式 | 适用场景 | 方法 |
+|------|---------|------|
+| **AI 驱动** `/buildModel` | 一次性/临时需求 | AI 读需求 → `model_edit` 动态构建 |
+| **通用脚本** `buildModelFromSpec` | 批量/标准化生成 | 定义 JSON Spec → 脚本自动生成 |
+
 ---
 
 ## 项目结构
@@ -102,7 +117,11 @@ masa/
 │   │   │   └── ref/                ← 连线/层级规范
 │   │   ├── test_gen/               ← Gherkin 测试生成
 │   │   ├── quality_gen/            ← Model Advisor 门限
-│   │   ├── model_gen/              ← 模型搭建 + Skill
+│   │   ├── model_gen/              ← 模型搭建 + Skill (/buildModel)
+│   │   │   ├── src/buildModelFromSpec.m ← 通用模型构建器
+│   │   │   └── .github/skills/     ← build-simulink-from-requirements SKILL
+│   │   ├── type_gen/               ← 自动设置端口数据类型（按前缀）
+│   │   │   └── src/autoSetPortDataTypes.m
 │   │   ├── data_mng/               ← Excel ↔ 模型 数据管理
 │   │   │   ├── exportCalToExcel.m  ← 标定导出 + .m 文件
 │   │   │   ├── exportSignalsToExcel.m ← 信号导出
