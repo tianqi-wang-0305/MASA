@@ -63,11 +63,11 @@ for i = 1:numel(blocks)
             violations{end + 1, 1} = sprintf('【信号命名违规】端口 "%s" 名称 "%s" 缺少数据类型前缀，应使用 {type}{Name} 格式，如 u16VehicleSpeed', ...
                 blockPath, name); %#ok<AGROW>
         else
-            % Validate the rest after prefix is valid identifier start
+            % Validate: {type}{Name} - 类型前缀后必须直接跟大写字母，无下划线
             rest = nameStr(length(matchedPrefix)+1:end);
             if isempty(rest) || ~isletter(rest(1))
                 stats.signalNamingIssues = stats.signalNamingIssues + 1;
-                violations{end + 1, 1} = sprintf('【信号命名违规】端口 "%s" 前缀 "%s" 后缺少描述，应使用 {type}{Name} 格式，如 u16VehicleSpeed', ...
+                violations{end + 1, 1} = sprintf('【信号命名违规】端口 "%s" 前缀 "%s" 后缺少描述，应使用 {type}{Name} 格式如 u16VehicleSpeed（类型和描述间无下划线）', ...
                     blockPath, matchedPrefix); %#ok<AGROW>
             else
                 stats.signalNamingOk = stats.signalNamingOk + 1;

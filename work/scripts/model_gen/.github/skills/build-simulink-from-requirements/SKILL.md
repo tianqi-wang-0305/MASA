@@ -144,7 +144,7 @@ Extract structured information from the user's natural language description.
 
 ### 端口命名规则（必须遵守）
 
-所有 Inport/Outport 的名称必须使用 `{type}{Name}` 格式：
+所有 Inport/Outport 的名称必须使用 `{type}{Name}` 格式，**类型前缀后不能有下划线**：
 
 | 数据类型 | 前缀 | 端口名示例 | 适用场景 |
 |---------|------|-----------|---------|

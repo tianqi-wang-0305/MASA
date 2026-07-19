@@ -2,16 +2,16 @@ function result = autoSetPortDataTypes(modelPath, varargin)
 % autoSetPortDataTypes 按信号名前缀自动设置端口数据类型
 %   扫描模型中所有 Inport/Outport 块，根据信号名前缀自动设置 OutDataTypeStr。
 %
-%   命名前缀规则:
-%     s8*/s08*   → int8
-%     s16*       → int16
-%     s32*       → int32
-%     u8*/u08*   → uint8
-%     u16*       → uint16
-%     u32*       → uint32
-%     f32*       → single
-%     f64*       → double
-%     b*/bool*   → boolean
+%   命名前缀规则（类型前缀后直接跟大写字母，无下划线）:
+%     s8*/s08*   → int8      示例: s8Temperature
+%     s16*       → int16     示例: s16VehicleSpeed
+%     s32*       → int32     示例: s32Position
+%     u8*/u08*   → uint8     示例: u8DoorStatus
+%     u16*       → uint16    示例: u16Counter
+%     u32*       → uint32    示例: u32TimeStamp
+%     f32*       → single    示例: f32Current
+%     f64*       → double    示例: f64Voltage
+%     b*/bool*   → boolean   示例: bLockRequest
 %     e*         → Enum: int8 (枚举默认)
 %     (其他)     → 保持原有类型不做修改
 %

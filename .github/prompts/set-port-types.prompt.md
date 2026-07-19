@@ -12,8 +12,10 @@ Scan all Inport/Outport blocks (recursively) and auto-set their data type based 
 
 ### 信号命名: `{type}{Description}`
 
-| Prefix | Data Type | Example |
-|--------|-----------|---------|
+类型前缀后直接跟描述（大写字母开头），中间无下划线。
+
+| Prefix | Data Type | 示例 |
+|--------|-----------|------|
 | `s8` | int8 | `s8Temperature` |
 | `s16` | int16 | `s16VehicleSpeed` |
 | `s32` | int32 | `s32Position` |
@@ -23,6 +25,8 @@ Scan all Inport/Outport blocks (recursively) and auto-set their data type based 
 | `f32` | single | `f32Current` |
 | `f64` | double | `f64Voltage` |
 | `b` / `bool` | boolean | `bLockRequest` |
+
+> 格式必须为 `{type}{Name}` 如 `u16VehicleSpeed`，类型前缀后无下划线。
 
 ### 标定命名: `cal_{type}{Description}`
 
