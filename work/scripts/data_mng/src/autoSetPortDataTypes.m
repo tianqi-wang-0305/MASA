@@ -4,12 +4,13 @@ function result = autoSetPortDataTypes(modelName, varargin)
 %   sets their data type based on the signal name prefix convention.
 %
 %   Signal naming convention: {type}{Description}
-%     s8Name    → int8        u8Name     → uint8
-%     s16Name   → int16       u16Name    → uint16
-%     s32Name   → int32       u32Name    → uint32
-%     f32Name   → single      f64Name    → double
-%     bName     → boolean     boolName   → boolean
-%     No prefix → Inherit (auto)
+%     s8Name     → int8        u8Name      → uint8
+%     s16Name    → int16       u16Name     → uint16
+%     s32Name    → int32       u32Name     → uint32
+%     f32Name    → single      f64Name     → double
+%     bName      → boolean     boolName    → boolean
+%     No prefix  → Inherit (auto)
+%   Calibration: cal_{type}{Description}     e.g. cal_s16Limit → int16
 %
 %   Inputs:
 %       modelName  - Model name or path (.slx)
@@ -266,8 +267,10 @@ end
 
 function [prefix, simType] = extractDataType(name, prefixMap)
 % Extract data type prefix from signal name and map to Simulink type
-% Convention: {type}{Description}  e.g. u16VehicleSpeed → uint16
-% Also supports: {type}_{Description}  e.g. u16_VehicleSpeed (backward compat)
+% Convention:
+%   Signals:   {type}{Description}          e.g. u16VehicleSpeed → uint16
+%   Cal:       cal_{type}{Description}      e.g. cal_u16Threshold → uint16
+%   Backward:  {type}_{Description}         e.g. u16_VehicleSpeed (deprecated)
 
     prefix = '';
     simType = '';
@@ -327,8 +330,8 @@ end
 function printMapping(map)
 % Print the active mapping table
     fprintf('Active prefix → data type mapping:\n');
-    fprintf('  Signal:      {prefix}{Name}       e.g. u16VehicleSpeed → uint16\n');
-    fprintf('  Calibration: cal_{prefix}{Name}    e.g. cal_u16Threshold → uint16\n\n');
+    fprintf('  Signal:      {type}{Name}         e.g. u16VehicleSpeed → uint16\n');
+    fprintf('  Calibration: cal_{type}{Name}      e.g. cal_u16Threshold → uint16\n\n');
     keys = sort(map.keys);
     for i = 1:numel(keys)
         fprintf('  %-6s → %-10s  e.g. %sName\n', keys{i}, map(keys{i}), keys{i});

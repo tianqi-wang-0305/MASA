@@ -19,7 +19,8 @@
 | `u32` | uint32 | `u32TimeStamp` |
 | `f32` | single | `f32Current` |
 | `f64` | double | `f64Voltage` |
-| `b` 或 `bool` | boolean | `bLockRequest` |
+| `b` | boolean | `bLockRequest` |
+| `bool` | boolean | `boolEnabled` |
 | 无前缀 | 继承 (Inherit) | `RawSignal` |
 
 > 使用 `/setPortTypes` 自动按此规则批量更新模型中所有端口的数据类型。

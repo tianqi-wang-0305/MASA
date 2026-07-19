@@ -1,6 +1,7 @@
 ---
+agent: agent
 description: "Build any Simulink model from natural language requirements. AI uses model_edit to create ports, subsystems, and logic dynamically."
-name: "Build Simulink Model"
+name: "create-model"
 argument-hint: "<describe your requirements>"
 ---
 
@@ -65,20 +66,41 @@ Your Requirements (natural language)
 - Match the wrapper size to the number of interface ports and nested subsystems before arranging the diagram.
 - Prefer auto-layout that preserves left-to-right signal flow and top-to-bottom port alignment.
 
-## Batch Generation
+## Block Naming Convention
 
-For standardized/parameterized model generation (e.g., creating 5 similar controllers), use:
+Use `built-in/{BlockType}` for all add_block calls (NOT `simulink/Sources/In1`):
 
-```matlab
-% Define spec as a struct or JSON file
-spec = jsondecode(fileread('controller_spec.json'));
-buildModelFromSpec(spec);
+| Block | Correct MCP type |
+|-------|-----------------|
+| Inport | `Inport` |
+| Outport | `Outport` |
+| SubSystem | `SubSystem` |
+| Constant | `Constant` |
+| Logic Gate | `Logic` |
+| Relational Operator | `RelationalOperator` |
+| Unit Delay | `UnitDelay` |
+| Gain | `Gain` |
+| Sum | `Sum` |
+| Saturation | `Saturation` |
 
-% Or inline
-buildModelFromSpec(struct('modelName','MyCtrl', 'inputs', ..., 'outputs', ...));
+## How to Build with MCP (step by step)
+
+When the user calls `/buildModel`, use the Simulink Agentic Toolkit MCP tools:
+
+```
+Step 1: model_edit(create, model)       → new_system + set solver
+Step 2: model_edit(add_block, Inport)   → create each input port
+Step 3: model_edit(add_block, Outport)  → create each output port
+Step 4: model_edit(create_subsystem)    → create wrapper + internal subsystems
+Step 5: model_edit(connect)             → wire ports → subsystems → outputs
+Step 6: model_edit(configure)           → set block parameters
+Step 7: model_check                     → validate structure
+Step 8: model_read                      → present summary to user
 ```
 
-See `work/scripts/model_gen/src/buildModelFromSpec.m` for details.
+Use the `modelName` returned from model creation as the `scope` for subsequent calls.
+Use sequential `ref` names (`p1, p2, ...`, `b1, b2, ...`, `s1, s2, ...`) to refer to blocks between operations.
+Set `layout_mode: 'incremental'` for intermediate steps, `'full'` as final cleanup.
 
 ## Prerequisites
 

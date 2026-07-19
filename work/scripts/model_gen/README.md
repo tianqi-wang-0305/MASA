@@ -17,23 +17,23 @@
 
 ## 方式二：脚本批量生成（标准化场景用）
 
-当需要批量创建多个结构相同的模型时，用 `buildModelFromSpec.m`：
+当需要批量创建多个结构相同的模型时，用 `buildModel.m`：
 
 ```matlab
 % 定义规格（struct 或 JSON 文件）
 spec.modelName = 'MyController';
-spec.inputs = struct('name', {'SensorA', 'SensorB'});
-spec.outputs = struct('name', {'Actuator'});
-spec.subsystems = struct('name', {'Logic', 'Output'});
+spec.inputs = struct('name', {'SensorA', 'SensorB'}, 'dataType', {'single','single'});
+spec.outputs = struct('name', {'Actuator'}, 'dataType', {'single'});
+spec.subsystems = struct('name', {'Logic'}, 'description', {'Core logic'});
 spec.connections = {'SensorA -> Logic', 'Logic -> Actuator'};
+buildModel(spec);
 
-buildModelFromSpec(spec);
+% 或从 JSON 文件加载
+buildModel('specs/controller_A.json');
+buildModel('specs/controller_B.json');
 ```
 
-支持的内置逻辑模板：
-- `threshold` — 阈值比较器
-- `pid` — PID 控制器
-- `filter` — 离散滤波器
+脚本内部调用 `model_edit`，与 AI 用的 MCP 工具是同一套基础设施。
 
 ## 技能文件
 
@@ -44,5 +44,5 @@ buildModelFromSpec(spec);
 | 场景 | 用哪个 |
 |------|--------|
 | 日常开发中从需求搭建模型 | `/buildModel` slash command |
-| 批量生成 5 个同类控制器 | `buildModelFromSpec(spec)` |
+| 批量生成 5 个同类控制器 | `buildModel(spec)` |
 | 有特殊算法需要精确控制 | 直接写 MATLAB 脚本 + `add_block`/`add_line` |
