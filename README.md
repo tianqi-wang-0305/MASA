@@ -46,7 +46,7 @@ satk_initialize
 
 | Command | 功能 | 入口 |
 |---------|------|------|
-| `/reviewModel` | 综合 Review（7 项检查 + 评分 A-D + 修改建议） | `reviewModel.m` |
+| `/reviewModel` | 综合 Review（6 项检查 + 评分 A-D + 修改建议） | `reviewModel.m` |
 | `/reviewLogic` | 逻辑一致性审查：需求功能 vs 模型行为 | AI Agent + model_read |
 | `/reviewConsistency` | 接口比对：Excel 需求 vs 模型信号/标定清单 | `reviewReqConsistency.m` |
 | `/checkModel` | Model Advisor + 误差门限（CI 用） | `checkModelWithThreshold.m` |
