@@ -6,10 +6,10 @@ This project provides a comprehensive AI-powered automation framework for Simuli
 
 | Skill | Path | When Used |
 |-------|------|-----------|
-| Build Simulink from Requirements | `work/scripts/model_gen/.github/skills/build-simulink-from-requirements/SKILL.md` | Building models from natural language |
-| Review Logic Consistency | `work/scripts/review_gen/.github/skills/review-logic-consistency/SKILL.md` | Comparing requirements vs model behavior |
-| Review with Fix Suggestions | `work/scripts/review_gen/.github/skills/review-with-fix-suggestions/SKILL.md` | Generating fix recommendations |
-| Signal Editor Test Generation | `work/scripts/test_gen/.github/skills/signal-editor-test-generation/SKILL.md` | Generating Simulink Test cases |
+| Build Simulink from Requirements | `work/scripts/model_gen/.github/skills/build-simulink-from-requirements/SKILL.md` | `/buildModel` — from natural language requirements |
+| Review Logic Consistency | `work/scripts/review_gen/.github/skills/review-logic-consistency/SKILL.md` | `/reviewLogic` — compare requirements vs model |
+| Review with Fix Suggestions | `work/scripts/review_gen/.github/skills/review-with-fix-suggestions/SKILL.md` | `/reviewModel` — fix recommendations |
+| Signal Editor Test Generation | `work/scripts/test_gen/.github/skills/signal-editor-test-generation/SKILL.md` | `/generateModelTests` — test case generation |
 
 ## Slash Commands
 
